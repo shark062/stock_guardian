@@ -232,6 +232,14 @@ export const mockAuditLogs: AuditLog[] = [
   { id: 5, usuario: "admin@stockguardian.com", acao: "cadastrou usuário", data: new Date(Date.now() - 86400000 * 5).toISOString(), detalhes: "maria@stockguardian.com criada com role viewer" },
 ];
 
+export const mockProductsExternal: Record<string, { nome: string; preco: number; categoria: string }> = {
+  "7891000100103": { nome: "Leite Integral 1L", preco: 4.99, categoria: "Laticínios" },
+  "7891000315507": { nome: "Iogurte Natural 170g", preco: 2.49, categoria: "Laticínios" },
+  "7891234567890": { nome: "Pão de Forma Integral", preco: 8.99, categoria: "Padaria" },
+  "7890000000123": { nome: "Queijo Minas Padrão 500g", preco: 14.99, categoria: "Laticínios" },
+  "7891150022688": { nome: "Refrigerante Cola 2L", preco: 7.49, categoria: "Bebidas" },
+};
+
 export function getProductStatus(validade: string): ProductStatus {
   const hoje = new Date();
   hoje.setHours(0, 0, 0, 0);
