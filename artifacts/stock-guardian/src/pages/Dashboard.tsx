@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { Layout } from "@/components/Layout";
 import { StatusBadge } from "@/components/StatusBadge";
+import { ServerConfigPanel } from "@/components/ServerConfig";
 import { useStore } from "@/contexts/StoreContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { mockProducts, getProductStatus, getDaysToExpire } from "@/services/mockData";
@@ -19,6 +20,7 @@ import {
   Loader2,
   Tag,
   Users,
+  Settings,
 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -27,6 +29,7 @@ export default function Dashboard() {
   const { isAdmin } = useAuth();
   const { lots, reposicoes, eficienciaUsuarios, produtosEmRisco, valorTotalEmRisco, isSyncing, syncAPI, lastSync, notifications } =
     useStore();
+  const [showServerCfg, setShowServerCfg] = useState(false);
 
   const sugestoes = useMemo(() => gerarTodasSugestoes(lots), [lots]);
 
@@ -149,22 +152,39 @@ export default function Dashboard() {
               </p>
             )}
           </div>
-          <button
-            onClick={handleSync}
-            disabled={isSyncing}
-            className={cn(
-              "flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all",
-              isSyncing ? "opacity-60 cursor-not-allowed" : "cursor-pointer hover:shadow-md"
+          <div className="flex items-center gap-2">
+            {isAdmin && (
+              <button
+                onClick={() => setShowServerCfg((v) => !v)}
+                className={cn(
+                  "flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-medium transition-all cursor-pointer border",
+                  showServerCfg
+                    ? "bg-primary/10 border-primary/30 text-primary"
+                    : "bg-muted border-border text-muted-foreground hover:text-foreground"
+                )}
+                title="Configurações do servidor"
+              >
+                <Settings className="w-4 h-4" />
+                <span className="hidden sm:inline">Servidor</span>
+              </button>
             )}
-            style={{ backgroundColor: "hsl(40, 54%, 54%)", color: "hsl(220, 73%, 12%)" }}
-          >
-            {isSyncing ? (
-              <Loader2 className="w-4 h-4 animate-spin" />
-            ) : (
-              <RefreshCw className="w-4 h-4" />
-            )}
-            {isSyncing ? "Sincronizando..." : "Sincronizar API"}
-          </button>
+            <button
+              onClick={handleSync}
+              disabled={isSyncing}
+              className={cn(
+                "flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-medium transition-all",
+                isSyncing ? "opacity-60 cursor-not-allowed" : "cursor-pointer hover:shadow-md"
+              )}
+              style={{ backgroundColor: "hsl(40, 54%, 54%)", color: "hsl(220, 73%, 12%)" }}
+            >
+              {isSyncing ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <RefreshCw className="w-4 h-4" />
+              )}
+              {isSyncing ? "Sincronizando..." : "Sincronizar"}
+            </button>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -375,6 +395,10 @@ export default function Dashboard() {
               })}
             </div>
           </div>
+        )}
+
+        {isAdmin && showServerCfg && (
+          <ServerConfigPanel onSaved={() => toast.success("Configuração salva! Clique em Sincronizar para buscar dados do servidor.")} />
         )}
       </div>
     </Layout>
