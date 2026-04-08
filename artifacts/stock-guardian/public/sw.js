@@ -1,5 +1,15 @@
-const CACHE_NAME = "stock-guardian-v1";
-const STATIC_ASSETS = ["/", "/dashboard", "/produtos", "/relatorios"];
+const CACHE_NAME = "stock-guardian-v2";
+const STATIC_ASSETS = [
+  "/",
+  "/dashboard",
+  "/produtos",
+  "/reposicao",
+  "/promocoes",
+  "/eficiencia",
+  "/relatorios",
+  "/usuarios",
+  "/auditoria",
+];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -23,6 +33,24 @@ self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
   if (event.request.url.includes("/api/")) return;
 
+  const url = new URL(event.request.url);
+
+  if (url.pathname.startsWith("/assets/") || url.pathname.match(/\.(js|css|png|jpg|svg|ico|woff2?)$/)) {
+    event.respondWith(
+      caches.match(event.request).then((cached) => {
+        if (cached) return cached;
+        return fetch(event.request).then((res) => {
+          if (res && res.status === 200) {
+            const clone = res.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+          }
+          return res;
+        });
+      })
+    );
+    return;
+  }
+
   event.respondWith(
     fetch(event.request)
       .then((res) => {
@@ -32,6 +60,6 @@ self.addEventListener("fetch", (event) => {
         }
         return res;
       })
-      .catch(() => caches.match(event.request))
+      .catch(() => caches.match(event.request).then((cached) => cached || caches.match("/")))
   );
 });

@@ -1,18 +1,31 @@
 import { Switch, Route, Router as WouterRouter, Redirect } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { Toaster } from "sonner";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import { StoreProvider } from "@/contexts/StoreContext";
 import Login from "@/pages/Login";
 import Dashboard from "@/pages/Dashboard";
 import Products from "@/pages/Products";
 import Reports from "@/pages/Reports";
 import UsersPage from "@/pages/Users";
 import AuditLog from "@/pages/AuditLog";
+import Reposicao from "@/pages/Reposicao";
+import Promocoes from "@/pages/Promocoes";
+import Eficiencia from "@/pages/Eficiencia";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
 
-function PrivateRoute({ component: Component, adminOnly = false }: { component: React.ComponentType; adminOnly?: boolean }) {
-  const { user, isLoading, isAdmin } = useAuth();
+function PrivateRoute({
+  component: Component,
+  adminOnly = false,
+  operadorPlus = false,
+}: {
+  component: React.ComponentType;
+  adminOnly?: boolean;
+  operadorPlus?: boolean;
+}) {
+  const { user, isLoading, isAdmin, isOperador } = useAuth();
 
   if (isLoading) {
     return (
@@ -27,6 +40,7 @@ function PrivateRoute({ component: Component, adminOnly = false }: { component: 
 
   if (!user) return <Redirect to="/login" />;
   if (adminOnly && !isAdmin) return <Redirect to="/dashboard" />;
+  if (operadorPlus && !isAdmin && !isOperador) return <Redirect to="/dashboard" />;
 
   return <Component />;
 }
@@ -42,6 +56,15 @@ function Router() {
       </Route>
       <Route path="/produtos">
         {() => <PrivateRoute component={Products} />}
+      </Route>
+      <Route path="/reposicao">
+        {() => <PrivateRoute component={Reposicao} operadorPlus />}
+      </Route>
+      <Route path="/promocoes">
+        {() => <PrivateRoute component={Promocoes} />}
+      </Route>
+      <Route path="/eficiencia">
+        {() => <PrivateRoute component={Eficiencia} adminOnly />}
       </Route>
       <Route path="/relatorios">
         {() => <PrivateRoute component={Reports} />}
@@ -64,9 +87,17 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-          <Router />
-        </WouterRouter>
+        <StoreProvider>
+          <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
+            <Router />
+          </WouterRouter>
+          <Toaster
+            position="top-right"
+            richColors
+            closeButton
+            duration={4000}
+          />
+        </StoreProvider>
       </AuthProvider>
     </QueryClientProvider>
   );
