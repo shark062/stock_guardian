@@ -3,7 +3,7 @@ import { useLocation } from "wouter";
 import { Eye, EyeOff, Lock, Mail, AlertCircle } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Footer } from "@/components/Footer";
-import appIcon from "@assets/file_00000000507071f591bbb3c37dabd840_1775728041279.png";
+import appIcon from "@assets/1775751717154_1775752093514.png";
 
 export default function Login() {
   const [, setLocation] = useLocation();
@@ -41,9 +41,8 @@ export default function Login() {
         <div className="w-full max-w-md animate-fade-in">
           {/* Logo */}
           <div className="text-center mb-8">
-            <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl mb-4 animate-pulse-ring"
-              style={{ backgroundColor: "hsl(40, 54%, 54%)" }}>
-              <img src={appIcon} alt="Stock Guardian" className="w-10 h-10 object-contain" />
+            <div className="inline-flex items-center justify-center mb-4">
+              <img src={appIcon} alt="Stock Guardian" className="w-24 h-24 object-contain rounded-2xl" />
             </div>
             <h1 className="text-2xl font-bold text-white tracking-tight">Stock Guardian</h1>
             <p className="mt-1 text-sm" style={{ color: "hsl(40, 54%, 65%)" }}>
