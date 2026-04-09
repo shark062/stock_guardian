@@ -1,13 +1,14 @@
 import { useState, useEffect } from "react";
-import { Moon, Sun } from "lucide-react";
+import { Moon, Sun, Menu } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { NotificationBell } from "./NotificationBell";
 
 interface HeaderProps {
   title: string;
+  onMenuClick?: () => void;
 }
 
-export function Header({ title }: HeaderProps) {
+export function Header({ title, onMenuClick }: HeaderProps) {
   const { user } = useAuth();
   const [isDark, setIsDark] = useState(false);
 
@@ -32,10 +33,20 @@ export function Header({ title }: HeaderProps) {
   };
 
   return (
-    <header className="h-16 bg-card border-b border-border flex items-center px-6 gap-4" data-testid="header">
-      <div className="flex-1">
-        <h2 className="font-semibold text-foreground text-lg">{title}</h2>
-        <p className="text-xs text-muted-foreground">
+    <header className="h-16 bg-card border-b border-border flex items-center px-4 sm:px-6 gap-3" data-testid="header">
+      {onMenuClick && (
+        <button
+          onClick={onMenuClick}
+          className="lg:hidden w-9 h-9 rounded-lg flex items-center justify-center hover:bg-muted transition-colors cursor-pointer shrink-0"
+          aria-label="Abrir menu"
+        >
+          <Menu className="w-5 h-5 text-muted-foreground" />
+        </button>
+      )}
+
+      <div className="flex-1 min-w-0">
+        <h2 className="font-semibold text-foreground text-base sm:text-lg truncate">{title}</h2>
+        <p className="text-xs text-muted-foreground hidden sm:block">
           {new Date().toLocaleDateString("pt-BR", {
             weekday: "long",
             year: "numeric",
@@ -45,7 +56,7 @@ export function Header({ title }: HeaderProps) {
         </p>
       </div>
 
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1 sm:gap-2">
         <button
           onClick={toggleTheme}
           className="w-9 h-9 rounded-lg flex items-center justify-center hover:bg-muted transition-colors cursor-pointer"

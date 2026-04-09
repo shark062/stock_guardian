@@ -11,6 +11,7 @@ import {
   RefreshCw,
   Tag,
   BarChart3,
+  X,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
@@ -40,7 +41,11 @@ const roleLabels: Record<string, string> = {
   viewer: "Visualizador",
 };
 
-export function Sidebar() {
+interface SidebarProps {
+  onClose?: () => void;
+}
+
+export function Sidebar({ onClose }: SidebarProps) {
   const [location] = useLocation();
   const { user, logout, isAdmin, isOperador } = useAuth();
 
@@ -52,24 +57,32 @@ export function Sidebar() {
 
   return (
     <aside
-      className="fixed left-0 top-0 h-screen w-64 flex flex-col z-40 animate-slide-in-left"
+      className="h-screen w-64 flex flex-col"
       style={{ backgroundColor: "hsl(220, 73%, 16%)" }}
       data-testid="sidebar"
     >
-      <div className="px-6 py-5 border-b" style={{ borderColor: "hsl(220, 60%, 22%)" }}>
+      <div className="px-5 py-4 border-b" style={{ borderColor: "hsl(220, 60%, 22%)" }}>
         <div className="flex items-center gap-3">
           <div
-            className="w-9 h-9 rounded-lg flex items-center justify-center animate-pulse-ring"
+            className="w-9 h-9 rounded-lg flex items-center justify-center animate-pulse-ring shrink-0"
             style={{ backgroundColor: "hsl(40, 54%, 54%)" }}
           >
             <Shield className="w-5 h-5" style={{ color: "hsl(220, 73%, 16%)" }} />
           </div>
-          <div>
+          <div className="flex-1 min-w-0">
             <h1 className="font-bold text-white text-sm tracking-wide">Stock Guardian</h1>
             <p className="text-xs" style={{ color: "hsl(40, 54%, 64%)" }}>
               Controle de Validade
             </p>
           </div>
+          {onClose && (
+            <button
+              onClick={onClose}
+              className="lg:hidden w-7 h-7 rounded-lg flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
         </div>
       </div>
 
@@ -99,7 +112,7 @@ export function Sidebar() {
         {visibleItems.map((item) => {
           const isActive = location === item.href || location.startsWith(item.href + "/");
           return (
-            <Link key={item.href} href={item.href}>
+            <Link key={item.href} href={item.href} onClick={onClose}>
               <a
                 className={cn(
                   "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 cursor-pointer",

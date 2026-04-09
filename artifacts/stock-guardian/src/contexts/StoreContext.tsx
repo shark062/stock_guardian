@@ -18,7 +18,7 @@ import {
   getProductStatus,
   getDaysToExpire,
 } from "@/services/mockData";
-import { buscarProdutosRecebidos } from "@/services/integracao";
+import { sincronizarComServidor } from "@/services/integracao";
 
 interface EficienciaUsuario {
   usuario: string;
@@ -35,6 +35,7 @@ interface StoreContextType {
   notifications: Notification[];
   isSyncing: boolean;
   lastSync: string | null;
+  lastSyncSource: "servidor" | "mock" | null;
   addLot: (lot: Lot) => void;
   addReposicao: (record: ReposicaoRecord) => void;
   addNotification: (notif: Omit<Notification, "id" | "lida" | "data">) => void;
@@ -90,6 +91,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [lastSync, setLastSync] = useState<string | null>(() =>
     localStorage.getItem(STORAGE_KEYS.lastSync)
   );
+  const [lastSyncSource, setLastSyncSource] = useState<"servidor" | "mock" | null>(() => {
+    const v = localStorage.getItem("sg_last_sync_source");
+    return v === "servidor" || v === "mock" ? v : null;
+  });
 
   useEffect(() => { saveToStorage(STORAGE_KEYS.lots, lots); }, [lots]);
   useEffect(() => { saveToStorage(STORAGE_KEYS.reposicoes, reposicoes); }, [reposicoes]);
@@ -218,10 +223,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const syncAPI = useCallback(async () => {
     setIsSyncing(true);
     try {
-      const produtos = await buscarProdutosRecebidos();
+      const result = await sincronizarComServidor();
       const now = new Date().toISOString();
 
-      produtos.forEach((p) => {
+      result.produtos.forEach((p) => {
         const lot: Lot = {
           id: generateId("lot"),
           produtoCodigo: p.codigoBarras,
@@ -237,9 +242,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       });
 
       setLastSync(now);
+      setLastSyncSource(result.fonte);
+      localStorage.setItem("sg_last_sync_source", result.fonte);
+
+      const fonteLabel = result.fonte === "servidor" ? "servidor real" : "dados simulados";
+      const erroInfo = result.erro ? ` (${result.erro})` : "";
       addNotification({
         tipo: "sistema",
-        mensagem: `Sincronização concluída: ${produtos.length} lote(s) recebido(s) via API externa.`,
+        mensagem: `Sincronização concluída: ${result.produtos.length} lote(s) via ${fonteLabel}.${erroInfo}`,
         destinatario: "todos",
       });
     } catch {
@@ -306,6 +316,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         notifications,
         isSyncing,
         lastSync,
+        lastSyncSource,
         addLot,
         addReposicao,
         addNotification,

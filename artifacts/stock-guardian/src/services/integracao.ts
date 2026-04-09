@@ -183,25 +183,82 @@ export async function testarConexao(): Promise<{ ok: boolean; mensagem: string; 
   }
 
   const baseUrl = `http://${cfg.ip}:${cfg.porta}`;
+  const senhaParam = cfg.senha
+    ? `?senha=${encodeURIComponent(cfg.senha)}&password=${encodeURIComponent(cfg.senha)}`
+    : "";
 
-  try {
-    const res = await fetch(`${baseUrl}/`, {
-      signal: AbortSignal.timeout(5000),
-    });
-    return {
-      ok: true,
-      mensagem: `Servidor respondeu (HTTP ${res.status}). Verificando endpoints de dados...`,
-      statusCode: res.status,
-    };
-  } catch (err: any) {
-    if (err?.name === "TimeoutError") {
-      return { ok: false, mensagem: `Tempo limite esgotado — ${baseUrl} não respondeu em 5 segundos.` };
+  const testEndpoints = [
+    `${baseUrl}/api/produtos${senhaParam}`,
+    `${baseUrl}/produtos${senhaParam}`,
+    `${baseUrl}/api/products${senhaParam}`,
+    `${baseUrl}/products${senhaParam}`,
+    `${baseUrl}/api/estoque${senhaParam}`,
+    `${baseUrl}/estoque${senhaParam}`,
+    `${baseUrl}/`,
+  ];
+
+  let lastErr = "";
+
+  for (const endpoint of testEndpoints) {
+    try {
+      const res = await fetch(endpoint, {
+        method: "GET",
+        headers: {
+          Accept: "application/json",
+          Authorization: cfg.senha ? `Bearer ${cfg.senha}` : "",
+          "X-Password": cfg.senha || "",
+        },
+        signal: AbortSignal.timeout(4000),
+      });
+
+      const path = new URL(endpoint).pathname;
+
+      if (res.ok) {
+        let dataInfo = "";
+        try {
+          const data = await res.json();
+          let items: any[] = [];
+          if (Array.isArray(data)) items = data;
+          else if (Array.isArray(data?.data)) items = data.data;
+          else if (Array.isArray(data?.produtos)) items = data.produtos;
+          else if (Array.isArray(data?.products)) items = data.products;
+          else if (Array.isArray(data?.items)) items = data.items;
+          else if (Array.isArray(data?.estoque)) items = data.estoque;
+          if (items.length > 0) {
+            dataInfo = ` — ${items.length} item(s) encontrado(s).`;
+          } else {
+            dataInfo = " — servidor respondeu, mas lista vazia.";
+          }
+        } catch {
+          dataInfo = " — servidor respondeu (HTML/não-JSON).";
+        }
+        return {
+          ok: true,
+          mensagem: `✓ Conectado via ${path} (HTTP ${res.status})${dataInfo} Integração pronta!`,
+          statusCode: res.status,
+        };
+      }
+
+      lastErr = `Endpoint ${path} retornou HTTP ${res.status}.`;
+    } catch (err: any) {
+      if (err?.name === "TimeoutError") {
+        lastErr = `Timeout em ${new URL(endpoint).pathname}.`;
+        continue;
+      }
+      if (err?.message?.includes("Failed to fetch") || err?.message?.includes("NetworkError") || err?.message?.includes("CORS")) {
+        return {
+          ok: false,
+          mensagem: `Não foi possível alcançar ${baseUrl}. Verifique: dispositivo na mesma rede Wi-Fi, servidor ligado e IP correto.`,
+        };
+      }
+      lastErr = err?.message || "erro desconhecido";
     }
-    if (err?.message?.includes("Failed to fetch") || err?.message?.includes("NetworkError")) {
-      return { ok: false, mensagem: `Não foi possível alcançar ${baseUrl}. Verifique: IP correto, servidor ligado, mesma rede Wi-Fi.` };
-    }
-    return { ok: false, mensagem: `Erro: ${err?.message || "desconhecido"}` };
   }
+
+  return {
+    ok: false,
+    mensagem: `Nenhum endpoint respondeu em ${baseUrl}. ${lastErr} Verifique se o servidor está ativo e acessível.`,
+  };
 }
 
 function getMockAleatorio(): ProdutoRecebido[] {

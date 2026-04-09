@@ -27,7 +27,7 @@ import { cn } from "@/lib/utils";
 
 export default function Dashboard() {
   const { isAdmin } = useAuth();
-  const { lots, reposicoes, eficienciaUsuarios, produtosEmRisco, valorTotalEmRisco, isSyncing, syncAPI, lastSync, notifications } =
+  const { lots, reposicoes, eficienciaUsuarios, produtosEmRisco, valorTotalEmRisco, isSyncing, syncAPI, lastSync, lastSyncSource, notifications } =
     useStore();
   const [showServerCfg, setShowServerCfg] = useState(false);
 
@@ -145,11 +145,21 @@ export default function Dashboard() {
     <Layout title="Dashboard">
       <div className="space-y-6">
         <div className="flex items-center justify-between flex-wrap gap-3">
-          <div>
+          <div className="flex items-center gap-2 flex-wrap">
             {lastSync && (
               <p className="text-xs text-muted-foreground">
-                Última sincronização: {new Date(lastSync).toLocaleString("pt-BR")}
+                Última sinc.: {new Date(lastSync).toLocaleString("pt-BR")}
               </p>
+            )}
+            {lastSyncSource && (
+              <span className={cn(
+                "text-xs font-semibold px-2 py-0.5 rounded-full",
+                lastSyncSource === "servidor"
+                  ? "bg-emerald-100 text-emerald-700"
+                  : "bg-slate-100 text-slate-500"
+              )}>
+                {lastSyncSource === "servidor" ? "Servidor real" : "Dados simulados"}
+              </span>
             )}
           </div>
           <div className="flex items-center gap-2">
