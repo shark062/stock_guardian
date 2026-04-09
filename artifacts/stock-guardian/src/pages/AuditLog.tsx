@@ -2,6 +2,7 @@ import { useState, useMemo } from "react";
 import { Layout } from "@/components/Layout";
 import { useStore } from "@/contexts/StoreContext";
 import { mockAuditLogs } from "@/services/mockData";
+import { gerarPDFSecao } from "@/services/pdfExport";
 import {
   ClipboardList,
   Search,
@@ -55,28 +56,70 @@ export default function AuditLog() {
   };
 
   const handleExportReposicoes = () => {
-    const rows = [
-      ["ID", "Produto", "Código", "Usuário", "Quantidade", "Validade", "FIFO", "Foto", "Data"],
-      ...reposicoes.map((r) => [
-        r.id,
-        r.produtoNome,
-        r.produtoCodigo,
-        r.usuarioNome,
-        String(r.quantidade),
-        new Date(r.validade + "T00:00:00").toLocaleDateString("pt-BR"),
-        r.erro_fifo ? "ERRO" : "OK",
-        r.imagemUrl ? "SIM" : "NÃO",
-        new Date(r.data).toLocaleString("pt-BR"),
-      ]),
-    ];
-    const csv = rows.map((row) => row.join(";")).join("\n");
-    const blob = new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `auditoria-reposicoes-${new Date().toISOString().split("T")[0]}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+    const erros = reposicoes.filter((r) => r.erro_fifo);
+    const corretos = reposicoes.filter((r) => !r.erro_fifo);
+
+    gerarPDFSecao(
+      "Auditoria de Reposições",
+      `Stock Guardian — ${reposicoes.length} registro(s) — gerado em ${new Date().toLocaleString("pt-BR")}`,
+      [
+        {
+          label: "Resumo Geral",
+          columns: [
+            { header: "Indicador", key: "indicador", width: 3 },
+            { header: "Valor", key: "valor", width: 1.5, align: "right" },
+          ],
+          rows: [
+            { indicador: "Total de Reposições", valor: String(reposicoes.length) },
+            { indicador: "Corretas (FIFO OK)", valor: String(corretos.length) },
+            { indicador: "Erros FIFO", valor: String(erros.length) },
+            { indicador: "Taxa de Conformidade FIFO", valor: reposicoes.length > 0 ? `${((corretos.length / reposicoes.length) * 100).toFixed(1)}%` : "100%" },
+            { indicador: "Com Foto Registrada", valor: String(reposicoes.filter((r) => r.imagemUrl).length) },
+          ],
+        },
+        {
+          label: "Erros de FIFO Detectados",
+          columns: [
+            { header: "Produto", key: "produto", width: 2.5 },
+            { header: "Usuário", key: "usuario", width: 1.5 },
+            { header: "Qtd.", key: "quantidade", width: 0.7, align: "center" },
+            { header: "Validade", key: "validade", width: 1.2, align: "center" },
+            { header: "Data/Hora", key: "data", width: 1.8, align: "center" },
+          ],
+          rows: erros.map((r) => ({
+            produto: r.produtoNome,
+            usuario: r.usuarioNome,
+            quantidade: String(r.quantidade),
+            validade: new Date(r.validade + "T00:00:00").toLocaleDateString("pt-BR"),
+            data: new Date(r.data).toLocaleString("pt-BR"),
+          })),
+        },
+        {
+          label: "Todos os Registros de Reposição",
+          columns: [
+            { header: "Produto", key: "produto", width: 2.5 },
+            { header: "Código", key: "codigo", width: 1.4, align: "center" },
+            { header: "Usuário", key: "usuario", width: 1.5 },
+            { header: "Qtd.", key: "quantidade", width: 0.7, align: "center" },
+            { header: "Validade", key: "validade", width: 1.2, align: "center" },
+            { header: "FIFO", key: "fifo", width: 0.7, align: "center" },
+            { header: "Foto", key: "foto", width: 0.6, align: "center" },
+            { header: "Data/Hora", key: "data", width: 1.8, align: "center" },
+          ],
+          rows: reposicoes.map((r) => ({
+            produto: r.produtoNome,
+            codigo: r.produtoCodigo,
+            usuario: r.usuarioNome,
+            quantidade: String(r.quantidade),
+            validade: new Date(r.validade + "T00:00:00").toLocaleDateString("pt-BR"),
+            fifo: r.erro_fifo ? "ERRO" : "OK",
+            foto: r.imagemUrl ? "SIM" : "NÃO",
+            data: new Date(r.data).toLocaleString("pt-BR"),
+          })),
+        },
+      ],
+      `auditoria-reposicoes-${new Date().toISOString().split("T")[0]}.pdf`
+    );
   };
 
   const totalErrosFifo = reposicoes.filter((r) => r.erro_fifo).length;

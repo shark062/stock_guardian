@@ -9,6 +9,7 @@ import {
   getDaysToExpire,
   ProductStatus,
 } from "@/services/mockData";
+import { gerarPDFSecao, gerarPDF } from "@/services/pdfExport";
 import {
   FileText,
   Download,
@@ -136,88 +137,118 @@ export default function Reports() {
   }, [lots, reposicoes, categorias]);
 
   const handleExportCompleto = () => {
-    const linhas: string[][] = [];
-
-    linhas.push(["=== RELATÓRIO FINANCEIRO STOCK GUARDIAN ===", "", ""]);
-    linhas.push(["Gerado em:", new Date().toLocaleString("pt-BR"), ""]);
-    linhas.push(["", "", ""]);
-
-    linhas.push(["=== KPIs GERAIS ===", "", ""]);
-    linhas.push(["Perda Confirmada (vencidos)", fmt(analiseFinanceira.perdaVencidos), ""]);
-    linhas.push(["Perda em Risco (críticos)", fmt(analiseFinanceira.perdaEmRisco), ""]);
-    linhas.push(["Perda Total Estimada", fmt(analiseFinanceira.perdaTotal), ""]);
-    linhas.push(["Margem Bruta Estimada", fmt(analiseFinanceira.margemBrutaTotal), ""]);
-    linhas.push(["Margem %", pct(analiseFinanceira.margemPct), ""]);
-    linhas.push(["Taxa FIFO", pct(analiseFinanceira.taxaFifo), ""]);
-    linhas.push(["", "", ""]);
-
-    linhas.push(["=== ANÁLISE POR CATEGORIA ===", "", ""]);
-    linhas.push(["Categoria", "Margem Bruta", "Perda", "Margem %", "Em Risco"]);
-    analiseFinanceira.porCategoria.forEach((c) => {
-      linhas.push([
-        c.categoria,
-        fmt(c.margem),
-        fmt(c.perda),
-        pct(c.margemPct),
-        String(c.emRisco),
-      ]);
-    });
-    linhas.push(["", "", ""]);
-
-    linhas.push(["=== PRODUTOS VENCIDOS (PERDA CONFIRMADA) ===", "", ""]);
-    linhas.push(["Produto", "Qtd.", "Custo Unit.", "Perda Total"]);
-    analiseFinanceira.vencidos.forEach((p) => {
-      linhas.push([p.nome, String(p.quantidade), fmt(p.custo), fmt(p.custo * p.quantidade)]);
-    });
-    linhas.push(["", "", ""]);
-
-    linhas.push(["=== EFICIÊNCIA FIFO POR USUÁRIO ===", "", ""]);
-    linhas.push(["Usuário", "Total Reposições", "Erros FIFO", "Eficiência %"]);
-    eficienciaUsuarios.forEach((u) => {
-      linhas.push([u.usuarioNome, String(u.total), String(u.erros), pct(u.eficiencia)]);
-    });
-
-    const csv = linhas.map((r) => r.join(";")).join("\n");
-    const blob = new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `relatorio-financeiro-${new Date().toISOString().split("T")[0]}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+    gerarPDFSecao(
+      "Relatório Financeiro",
+      `Stock Guardian — gerado em ${new Date().toLocaleString("pt-BR")}`,
+      [
+        {
+          label: "KPIs Gerais",
+          columns: [
+            { header: "Indicador", key: "indicador", width: 3 },
+            { header: "Valor", key: "valor", width: 1.5, align: "right" },
+          ],
+          rows: [
+            { indicador: "Perda Confirmada (produtos vencidos)", valor: fmt(analiseFinanceira.perdaVencidos) },
+            { indicador: "Perda em Risco (críticos)", valor: fmt(analiseFinanceira.perdaEmRisco) },
+            { indicador: "Perda Total Estimada", valor: fmt(analiseFinanceira.perdaTotal) },
+            { indicador: "Margem Bruta Estimada", valor: fmt(analiseFinanceira.margemBrutaTotal) },
+            { indicador: "Margem %", valor: pct(analiseFinanceira.margemPct) },
+            { indicador: "Taxa FIFO", valor: pct(analiseFinanceira.taxaFifo) },
+            { indicador: "Erros FIFO", valor: String(analiseFinanceira.errosFifo) },
+            { indicador: "Total de Reposições", valor: String(analiseFinanceira.totalReposicoes) },
+          ],
+        },
+        {
+          label: "Análise por Categoria",
+          columns: [
+            { header: "Categoria", key: "categoria", width: 2.5 },
+            { header: "Margem Bruta", key: "margem", width: 1.5, align: "right" },
+            { header: "Perda", key: "perda", width: 1.5, align: "right" },
+            { header: "Margem %", key: "margemPct", width: 1, align: "center" },
+            { header: "Em Risco", key: "emRisco", width: 0.8, align: "center" },
+          ],
+          rows: analiseFinanceira.porCategoria.map((c) => ({
+            categoria: c.categoria,
+            margem: fmt(c.margem),
+            perda: fmt(c.perda),
+            margemPct: pct(c.margemPct),
+            emRisco: String(c.emRisco),
+          })),
+        },
+        {
+          label: "Produtos Vencidos — Perda Confirmada",
+          columns: [
+            { header: "Produto", key: "nome", width: 3 },
+            { header: "Qtd.", key: "quantidade", width: 0.7, align: "center" },
+            { header: "Custo Unit.", key: "custo", width: 1.3, align: "right" },
+            { header: "Perda Total", key: "perda", width: 1.3, align: "right" },
+          ],
+          rows: analiseFinanceira.vencidos.map((p) => ({
+            nome: p.nome,
+            quantidade: String(p.quantidade),
+            custo: fmt(p.custo),
+            perda: fmt(p.custo * p.quantidade),
+          })),
+        },
+        {
+          label: "Eficiência FIFO por Usuário",
+          columns: [
+            { header: "Usuário", key: "nome", width: 2.5 },
+            { header: "Total Reposições", key: "total", width: 1.5, align: "center" },
+            { header: "Erros FIFO", key: "erros", width: 1.2, align: "center" },
+            { header: "Eficiência %", key: "eficiencia", width: 1.2, align: "center" },
+          ],
+          rows: eficienciaUsuarios.map((u) => ({
+            nome: u.usuarioNome,
+            total: String(u.total),
+            erros: String(u.erros),
+            eficiencia: pct(u.eficiencia),
+          })),
+        },
+      ],
+      `relatorio-financeiro-${new Date().toISOString().split("T")[0]}.pdf`
+    );
   };
 
   const handleExportDetalhado = () => {
-    const rows = [
-      ["Nome", "Código", "Categoria", "Preço Venda", "Custo", "Margem R$", "Margem %", "Quantidade", "Validade", "Status", "Dias"],
-      ...filtered.map((p) => {
+    gerarPDF({
+      title: "Relatório Detalhado de Produtos",
+      subtitle: `Stock Guardian — ${filtered.length} produto(s) — gerado em ${new Date().toLocaleString("pt-BR")}`,
+      orientation: "landscape",
+      columns: [
+        { header: "Produto", key: "nome", width: 3 },
+        { header: "Código", key: "codigo", width: 1.4, align: "center" },
+        { header: "Categoria", key: "categoria", width: 1.5 },
+        { header: "Preço Venda", key: "preco", width: 1.2, align: "right" },
+        { header: "Custo", key: "custo", width: 1.1, align: "right" },
+        { header: "Margem R$", key: "margem", width: 1.2, align: "right" },
+        { header: "Margem %", key: "margemPct", width: 0.9, align: "center" },
+        { header: "Qtd.", key: "quantidade", width: 0.7, align: "center" },
+        { header: "Validade", key: "validade", width: 1.1, align: "center" },
+        { header: "Status", key: "status", width: 1, align: "center" },
+        { header: "Dias", key: "dias", width: 0.7, align: "center" },
+      ],
+      rows: filtered.map((p) => {
         const status = getProductStatus(p.validade);
         const days = getDaysToExpire(p.validade);
         const margem = p.preco - p.custo;
         const margemPct = p.custo > 0 ? (margem / p.custo) * 100 : 0;
-        return [
-          p.nome,
-          p.codigoBarras,
-          p.categoria,
-          `R$ ${p.preco.toFixed(2)}`,
-          `R$ ${p.custo.toFixed(2)}`,
-          `R$ ${margem.toFixed(2)}`,
-          `${margemPct.toFixed(1)}%`,
-          String(p.quantidade),
-          new Date(p.validade + "T00:00:00").toLocaleDateString("pt-BR"),
-          status,
-          String(days),
-        ];
+        return {
+          nome: p.nome,
+          codigo: p.codigoBarras,
+          categoria: p.categoria,
+          preco: fmt(p.preco),
+          custo: fmt(p.custo),
+          margem: fmt(margem),
+          margemPct: pct(margemPct),
+          quantidade: String(p.quantidade),
+          validade: new Date(p.validade + "T00:00:00").toLocaleDateString("pt-BR"),
+          status: status === "vencido" ? "Vencido" : status === "critico" ? "Crítico" : status === "atencao" ? "Atenção" : "OK",
+          dias: String(days),
+        };
       }),
-    ];
-    const csv = rows.map((r) => r.join(";")).join("\n");
-    const blob = new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `relatorio-detalhado-${new Date().toISOString().split("T")[0]}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
+      filename: `relatorio-detalhado-${new Date().toISOString().split("T")[0]}.pdf`,
+    });
   };
 
   const kpis = [
@@ -810,7 +841,7 @@ export default function Reports() {
                   data-testid="btn-export"
                 >
                   <Download className="w-3.5 h-3.5" />
-                  Exportar CSV
+                  Exportar PDF
                 </button>
               </div>
               <div className="overflow-x-auto">
