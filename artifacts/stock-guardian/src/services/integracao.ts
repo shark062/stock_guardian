@@ -21,7 +21,7 @@ export function getServerConfig(): ServerConfig {
     const raw = localStorage.getItem(CONFIG_KEY);
     if (raw) return JSON.parse(raw) as ServerConfig;
   } catch {}
-  return { ip: "192.168.2.198", porta: "8559", senha: "12345", ativo: false };
+  return { ip: "192.168.2.198", porta: "8589", senha: "12345", ativo: true };
 }
 
 export function saveServerConfig(cfg: ServerConfig) {
