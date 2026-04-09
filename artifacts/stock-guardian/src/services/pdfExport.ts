@@ -1,10 +1,14 @@
 import { jsPDF } from "jspdf";
+import mercadaoLogoUrl from "@assets/POWERED_BY_SHARK_TECH_20260409_064424_0000_1775728041239.png";
 
 const NAVY = [10, 31, 68] as const;
 const GOLD = [201, 161, 74] as const;
 const GRAY_LIGHT = [245, 247, 250] as const;
 const GRAY_TEXT = [100, 110, 130] as const;
 const DARK = [28, 28, 28] as const;
+
+const mercadaoImg = new Image();
+mercadaoImg.src = mercadaoLogoUrl;
 
 export interface PdfColumn {
   header: string;
@@ -22,46 +26,22 @@ export interface PdfOptions {
   orientation?: "portrait" | "landscape";
 }
 
-function drawWatermark(doc: jsPDF) {
-  const pw = doc.internal.pageSize.getWidth();
-  const ph = doc.internal.pageSize.getHeight();
-  const cx = pw / 2;
-  const cy = ph / 2;
-
-  doc.saveGraphicsState();
-
-  doc.setGState(doc.GState({ opacity: 0.055 }));
-  doc.setTextColor(...NAVY);
-  doc.setFont("helvetica", "bold");
-
-  doc.setFontSize(34);
-  doc.text("POWERED BY", cx, cy - 18, { align: "center", angle: 315 });
-  doc.setFontSize(42);
-  doc.text("SHARK_TECH", cx, cy + 2, { align: "center", angle: 315 });
-
-  doc.setGState(doc.GState({ opacity: 0.035 }));
-  doc.setFontSize(11);
-  doc.setTextColor(...GOLD);
-
-  const diagonal = Math.sqrt(pw * pw + ph * ph);
-  const step = 60;
-  const count = Math.ceil(diagonal / step) + 2;
-  const angle = 315;
-
-  for (let i = -count / 2; i <= count / 2; i++) {
-    const offset = i * step;
-    doc.text("SHARK_TECH  ·  ", cx + offset, cy, { align: "center", angle });
-  }
-
-  doc.restoreGraphicsState();
-}
-
 function drawHeader(doc: jsPDF, title: string, subtitle?: string) {
   const pw = doc.internal.pageSize.getWidth();
   const margin = 14;
 
   doc.setFillColor(...NAVY);
   doc.rect(0, 0, pw, 28, "F");
+
+  const logoW = 44;
+  const logoH = 16;
+  const logoX = pw - margin - logoW;
+  const logoY = 6;
+  doc.setFillColor(255, 255, 255);
+  doc.rect(logoX - 2, logoY - 2, logoW + 4, logoH + 4, "F");
+  if (mercadaoImg.complete && mercadaoImg.naturalWidth > 0) {
+    doc.addImage(mercadaoImg, "PNG", logoX, logoY, logoW, logoH);
+  }
 
   doc.setFillColor(...GOLD);
   doc.rect(margin, 10, 3, 14, "F");
@@ -77,18 +57,6 @@ function drawHeader(doc: jsPDF, title: string, subtitle?: string) {
     doc.setTextColor(...GOLD);
     doc.text(subtitle, margin + 8, 25);
   }
-
-  const dateStr = new Date().toLocaleString("pt-BR", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(7.5);
-  doc.setTextColor(180, 195, 215);
-  doc.text(dateStr, pw - margin, 20, { align: "right" });
 
   return 32;
 }
@@ -109,12 +77,12 @@ function drawFooter(doc: jsPDF, pageNum: number, totalPages: number) {
   doc.setFont("helvetica", "bolditalic");
   doc.setFontSize(11);
   doc.setTextColor(...GOLD);
-  doc.text("Shark_Tech", margin + 2, ph - 12);
+  doc.text("Stock Guardian", margin + 2, ph - 12);
 
   doc.setFont("helvetica", "normal");
   doc.setFontSize(6.5);
   doc.setTextColor(150, 165, 185);
-  doc.text("powered by Shark_Tech  ·  Stock Guardian", margin + 2, ph - 6);
+  doc.text("Mercadão Frios, Embalagens e +!  ·  Stock Guardian", margin + 2, ph - 6);
 
   doc.setFont("helvetica", "normal");
   doc.setFontSize(7.5);
@@ -222,7 +190,6 @@ export function gerarPDF(options: PdfOptions): void {
 
   function startPage(isFirst = false) {
     if (!isFirst) doc.addPage();
-    drawWatermark(doc);
     drawHeader(doc, title, subtitle);
     drawFooter(doc, currentPage, estimatedTotal);
     return 38;
@@ -281,7 +248,6 @@ export function gerarPDFSecao(
 
   function startPage(isFirst = false) {
     if (!isFirst) doc.addPage();
-    drawWatermark(doc);
     drawHeader(doc, title, subtitle);
     drawFooter(doc, currentPage, 99);
     return 38;
