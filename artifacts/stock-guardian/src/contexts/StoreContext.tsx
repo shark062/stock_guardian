@@ -12,13 +12,22 @@ import {
   ReposicaoRecord,
   Notification,
   mockProducts,
-  mockInitialLots,
-  mockInitialReposicoes,
-  mockInitialNotifications,
-  getProductStatus,
   getDaysToExpire,
 } from "@/services/mockData";
 import { sincronizarComServidor } from "@/services/integracao";
+
+const DATA_VERSION = "real_v1";
+
+function clearMockDataIfNeeded() {
+  if (localStorage.getItem("sg_data_version") !== DATA_VERSION) {
+    localStorage.removeItem("sg_lots");
+    localStorage.removeItem("sg_reposicoes");
+    localStorage.removeItem("sg_notifications");
+    localStorage.removeItem("sg_last_sync");
+    localStorage.removeItem("sg_last_sync_source");
+    localStorage.setItem("sg_data_version", DATA_VERSION);
+  }
+}
 
 interface EficienciaUsuario {
   usuario: string;
@@ -78,14 +87,15 @@ function generateId(prefix: string): string {
 }
 
 export function StoreProvider({ children }: { children: ReactNode }) {
-  const [lots, setLots] = useState<Lot[]>(() =>
-    loadFromStorage(STORAGE_KEYS.lots, mockInitialLots)
-  );
+  const [lots, setLots] = useState<Lot[]>(() => {
+    clearMockDataIfNeeded();
+    return loadFromStorage<Lot[]>(STORAGE_KEYS.lots, []);
+  });
   const [reposicoes, setReposicoes] = useState<ReposicaoRecord[]>(() =>
-    loadFromStorage(STORAGE_KEYS.reposicoes, mockInitialReposicoes)
+    loadFromStorage<ReposicaoRecord[]>(STORAGE_KEYS.reposicoes, [])
   );
   const [notifications, setNotifications] = useState<Notification[]>(() =>
-    loadFromStorage(STORAGE_KEYS.notifications, mockInitialNotifications)
+    loadFromStorage<Notification[]>(STORAGE_KEYS.notifications, [])
   );
   const [isSyncing, setIsSyncing] = useState(false);
   const [lastSync, setLastSync] = useState<string | null>(() =>
@@ -103,35 +113,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     if (lastSync) localStorage.setItem(STORAGE_KEYS.lastSync, lastSync);
   }, [lastSync]);
 
+  // Auto-sync on first load
   useEffect(() => {
-    const alertaValidade = mockProducts
-      .filter((p) => {
-        const dias = getDaysToExpire(p.validade);
-        return dias <= 7 && dias >= 0 && p.quantidade > 0;
-      })
-      .map((p) => {
-        const dias = getDaysToExpire(p.validade);
-        const msg =
-          dias === 0
-            ? `${p.nome} vence hoje — ação urgente necessária.`
-            : `${p.nome} vence em ${dias} dia(s) — verifique promoções.`;
-        return { msg, dias };
-      });
-
-    alertaValidade.forEach(({ msg }) => {
-      setNotifications((prev) => {
-        if (prev.some((n) => n.mensagem === msg)) return prev;
-        const nova: Notification = {
-          id: generateId("notif"),
-          tipo: "validade",
-          mensagem: msg,
-          destinatario: "todos",
-          lida: false,
-          data: new Date().toISOString(),
-        };
-        return [nova, ...prev];
-      });
-    });
+    syncAPI();
   }, []);
 
   const addLot = useCallback((lot: Lot) => {

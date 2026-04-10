@@ -62,9 +62,13 @@ export function BarcodeScanner({ onDetected, onClose }: BarcodeScannerProps) {
 
       streamRef.current = stream;
 
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play();
+      // Attach stream to video element — it must exist in DOM already
+      const video = videoRef.current;
+      if (video) {
+        video.srcObject = stream;
+        video.onloadedmetadata = () => {
+          video.play().catch(() => {});
+        };
       }
 
       let detector: any = null;
@@ -84,18 +88,18 @@ export function BarcodeScanner({ onDetected, onClose }: BarcodeScannerProps) {
 
       const tick = async () => {
         if (!videoRef.current || !canvasRef.current) return;
-        const video = videoRef.current;
-        if (video.readyState < 2) {
+        const v = videoRef.current;
+        if (v.readyState < 2 || v.videoWidth === 0) {
           animFrameRef.current = requestAnimationFrame(tick);
           return;
         }
 
         const canvas = canvasRef.current;
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
+        canvas.width = v.videoWidth;
+        canvas.height = v.videoHeight;
         const ctx = canvas.getContext("2d");
         if (!ctx) return;
-        ctx.drawImage(video, 0, 0);
+        ctx.drawImage(v, 0, 0);
 
         if (detector) {
           try {
@@ -220,6 +224,41 @@ export function BarcodeScanner({ onDetected, onClose }: BarcodeScannerProps) {
         <div className="p-4">
           {mode === "camera" && (
             <div className="space-y-3">
+              {/* Video always mounted so ref is available when stream arrives */}
+              <div
+                className="relative rounded-xl overflow-hidden bg-black"
+                style={{
+                  aspectRatio: "4/3",
+                  display: camStatus === "running" ? "block" : "none",
+                }}
+              >
+                <video
+                  ref={videoRef}
+                  className="w-full h-full object-cover"
+                  playsInline
+                  muted
+                  autoPlay
+                />
+                <canvas ref={canvasRef} className="hidden" />
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                  <div className="border-2 border-primary/80 rounded-lg w-56 h-24 relative">
+                    <div className="absolute -top-0.5 -left-0.5 w-4 h-4 border-t-4 border-l-4 border-primary rounded-tl" />
+                    <div className="absolute -top-0.5 -right-0.5 w-4 h-4 border-t-4 border-r-4 border-primary rounded-tr" />
+                    <div className="absolute -bottom-0.5 -left-0.5 w-4 h-4 border-b-4 border-l-4 border-primary rounded-bl" />
+                    <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 border-b-4 border-r-4 border-primary rounded-br" />
+                    <div
+                      className="absolute left-0 right-0 h-0.5 bg-primary/70"
+                      style={{ animation: "scan-line 2s linear infinite", top: "50%" }}
+                    />
+                  </div>
+                </div>
+                {!hasBarcodeDetector && (
+                  <div className="absolute bottom-2 left-2 right-2 bg-black/60 text-white text-[10px] rounded px-2 py-1 text-center">
+                    Câmera ativa — detecção automática indisponível neste navegador
+                  </div>
+                )}
+              </div>
+
               {camStatus === "starting" && (
                 <div className="flex flex-col items-center py-8 gap-3">
                   <Loader2 className="w-7 h-7 text-primary animate-spin" />
@@ -251,33 +290,6 @@ export function BarcodeScanner({ onDetected, onClose }: BarcodeScannerProps) {
 
               {camStatus === "running" && (
                 <>
-                  <div className="relative rounded-xl overflow-hidden bg-black" style={{ aspectRatio: "4/3" }}>
-                    <video
-                      ref={videoRef}
-                      className="w-full h-full object-cover"
-                      playsInline
-                      muted
-                      autoPlay
-                    />
-                    <canvas ref={canvasRef} className="hidden" />
-                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                      <div className="border-2 border-primary/80 rounded-lg w-56 h-24 relative">
-                        <div className="absolute -top-0.5 -left-0.5 w-4 h-4 border-t-4 border-l-4 border-primary rounded-tl" />
-                        <div className="absolute -top-0.5 -right-0.5 w-4 h-4 border-t-4 border-r-4 border-primary rounded-tr" />
-                        <div className="absolute -bottom-0.5 -left-0.5 w-4 h-4 border-b-4 border-l-4 border-primary rounded-bl" />
-                        <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 border-b-4 border-r-4 border-primary rounded-br" />
-                        <div
-                          className="absolute left-0 right-0 h-0.5 bg-primary/70"
-                          style={{ animation: "scan-line 2s linear infinite", top: "50%" }}
-                        />
-                      </div>
-                    </div>
-                    {!hasBarcodeDetector && (
-                      <div className="absolute bottom-2 left-2 right-2 bg-black/60 text-white text-[10px] rounded px-2 py-1 text-center">
-                        Câmera ativa — detecção automática indisponível neste navegador
-                      </div>
-                    )}
-                  </div>
                   <p className="text-xs text-muted-foreground text-center">
                     Aponte o código de barras para dentro da moldura
                     {hasBarcodeDetector ? " — detecção automática ativa" : ""}
