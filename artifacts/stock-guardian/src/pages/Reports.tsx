@@ -89,6 +89,7 @@ export default function Reports() {
       const prods = allProducts.filter((p) => p.categoria === cat);
       const margem = prods.reduce((acc, p) => acc + (p.preco - p.custo) * p.quantidade, 0);
       const custo = prods.reduce((acc, p) => acc + p.custo * p.quantidade, 0);
+      const valorVenda = prods.reduce((acc, p) => acc + p.preco * p.quantidade, 0);
       const margemPctCat = custo > 0 ? (margem / custo) * 100 : 0;
       const emRisco = prods.filter((p) => {
         const s = getProductStatus(p.validade);
@@ -104,11 +105,23 @@ export default function Reports() {
         emRisco: emRisco.length,
         perda: perdaCat,
         custo,
+        valorVenda,
       };
     }).sort((a, b) => b.perda - a.perda);
 
     const maxPerda = Math.max(...porCategoria.map((c) => c.perda), 1);
     const maxMargem = Math.max(...porCategoria.map((c) => Math.abs(c.margem)), 1);
+    const maxValorEstoque = Math.max(...porCategoria.map((c) => c.custo), 1);
+
+    const valorTotalEstoque = allProducts.reduce((acc, p) => acc + p.custo * p.quantidade, 0);
+    const valorTotalVenda = allProducts.reduce((acc, p) => acc + p.preco * p.quantidade, 0);
+    const perdaEstimadaSeInacao = perdaEmRisco + perdaAtencao;
+
+    // Rendimentos estimados: considera giro mensal de estoque
+    const rendimentoMensal = margemBrutaTotal;
+    const rendimentoDiario = rendimentoMensal / 30;
+    const rendimentoSemanal = rendimentoMensal / 30 * 7;
+    const rendimentoAnual = rendimentoMensal * 12;
 
     return {
       vencidos,
@@ -118,6 +131,7 @@ export default function Reports() {
       perdaEmRisco,
       perdaAtencao,
       perdaTotal: perdaVencidos + perdaEmRisco,
+      perdaEstimadaSeInacao,
       margemBrutaTotal,
       margemPct,
       taxaFifo,
@@ -126,6 +140,13 @@ export default function Reports() {
       porCategoria,
       maxPerda,
       maxMargem,
+      maxValorEstoque,
+      valorTotalEstoque,
+      valorTotalVenda,
+      rendimentoDiario,
+      rendimentoSemanal,
+      rendimentoMensal,
+      rendimentoAnual,
     };
   }, [allProducts, lots, reposicoes, categorias]);
 
@@ -329,6 +350,138 @@ export default function Reports() {
 
         {aba === "financeiro" && (
           <>
+            {/* Rendimentos Estimados */}
+            <div className="bg-card rounded-xl border border-card-border shadow-sm overflow-hidden">
+              <div className="px-5 py-4 border-b border-border flex items-center gap-2">
+                <TrendingUp className="w-4 h-4 text-emerald-500" />
+                <span className="font-semibold text-sm text-foreground">Rendimento Estimado sobre Margem</span>
+                <span className="ml-auto text-[10px] text-muted-foreground uppercase tracking-wide">Baseado no estoque atual</span>
+              </div>
+              <div className="grid grid-cols-2 lg:grid-cols-4 divide-x divide-border">
+                {[
+                  { label: "Diário", value: fmt(analiseFinanceira.rendimentoDiario), sub: "÷ 30 dias" },
+                  { label: "Semanal", value: fmt(analiseFinanceira.rendimentoSemanal), sub: "÷ 4,3 semanas" },
+                  { label: "Mensal", value: fmt(analiseFinanceira.rendimentoMensal), sub: "giro mensal" },
+                  { label: "Anual", value: fmt(analiseFinanceira.rendimentoAnual), sub: "× 12 meses" },
+                ].map((r) => (
+                  <div key={r.label} className="px-5 py-4 text-center">
+                    <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide mb-1">{r.label}</p>
+                    <p className="text-lg font-bold text-emerald-600">{r.value}</p>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">{r.sub}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Valor em Estoque por Grupo */}
+            <div className="bg-card rounded-xl border border-card-border shadow-sm overflow-hidden">
+              <div className="px-5 py-4 border-b border-border flex items-center gap-2">
+                <Layers className="w-4 h-4 text-primary" />
+                <span className="font-semibold text-sm text-foreground">Valor em Estoque por Grupo</span>
+                <span className="ml-auto text-[10px] text-muted-foreground">
+                  Total custo: <strong className="text-foreground">{fmt(analiseFinanceira.valorTotalEstoque)}</strong>
+                  {" · "}Venda: <strong className="text-emerald-600">{fmt(analiseFinanceira.valorTotalVenda)}</strong>
+                </span>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-muted/40">
+                      <th className="text-left px-5 py-2.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Grupo</th>
+                      <th className="text-right px-4 py-2.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Valor Custo</th>
+                      <th className="text-right px-4 py-2.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide hidden sm:table-cell">Valor Venda</th>
+                      <th className="text-right px-4 py-2.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide hidden md:table-cell">Margem R$</th>
+                      <th className="text-right px-4 py-2.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Margem %</th>
+                      <th className="text-center px-4 py-2.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide hidden lg:table-cell">Qtd. Itens</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {[...analiseFinanceira.porCategoria]
+                      .sort((a, b) => b.custo - a.custo)
+                      .map((cat) => (
+                        <tr key={cat.categoria} className="hover:bg-muted/20 transition-colors">
+                          <td className="px-5 py-3">
+                            <div className="flex items-center gap-2">
+                              <div
+                                className="h-2 rounded-full shrink-0"
+                                style={{ width: `${Math.max(4, (cat.custo / analiseFinanceira.maxValorEstoque) * 40)}px`, backgroundColor: "hsl(40, 54%, 54%)" }}
+                              />
+                              <span className="font-medium text-foreground">{cat.categoria}</span>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 text-right font-semibold text-foreground">{fmt(cat.custo)}</td>
+                          <td className="px-4 py-3 text-right text-emerald-600 font-semibold hidden sm:table-cell">{fmt(cat.valorVenda)}</td>
+                          <td className="px-4 py-3 text-right text-emerald-600 hidden md:table-cell">{fmt(cat.margem)}</td>
+                          <td className="px-4 py-3 text-right">
+                            <span className={cn(
+                              "text-xs font-semibold px-1.5 py-0.5 rounded",
+                              cat.margemPct >= 30 ? "bg-emerald-100 text-emerald-700" :
+                              cat.margemPct >= 15 ? "bg-amber-100 text-amber-700" :
+                              "bg-red-100 text-red-700"
+                            )}>
+                              {pct(cat.margemPct)}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-center text-muted-foreground hidden lg:table-cell">{cat.produtos}</td>
+                        </tr>
+                      ))}
+                  </tbody>
+                  <tfoot>
+                    <tr className="bg-muted/40 font-bold">
+                      <td className="px-5 py-2.5 text-foreground">TOTAL</td>
+                      <td className="px-4 py-2.5 text-right text-foreground">{fmt(analiseFinanceira.valorTotalEstoque)}</td>
+                      <td className="px-4 py-2.5 text-right text-emerald-600 hidden sm:table-cell">{fmt(analiseFinanceira.valorTotalVenda)}</td>
+                      <td className="px-4 py-2.5 text-right text-emerald-600 hidden md:table-cell">{fmt(analiseFinanceira.margemBrutaTotal)}</td>
+                      <td className="px-4 py-2.5 text-right">
+                        <span className={cn(
+                          "text-xs font-semibold px-1.5 py-0.5 rounded",
+                          analiseFinanceira.margemPct >= 30 ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"
+                        )}>
+                          {pct(analiseFinanceira.margemPct)}
+                        </span>
+                      </td>
+                      <td className="px-4 py-2.5 text-center text-muted-foreground hidden lg:table-cell">{allProducts.length}</td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            </div>
+
+            {/* Perda estimada se não houver ação */}
+            {analiseFinanceira.perdaEstimadaSeInacao > 0 && (
+              <div className="bg-amber-50 dark:bg-amber-950/20 rounded-xl border border-amber-200 dark:border-amber-800 p-5">
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center shrink-0">
+                    <AlertTriangle className="w-5 h-5 text-amber-600" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-semibold text-amber-800 dark:text-amber-200 text-sm">Perda Estimada se Nenhuma Ação for Tomada</p>
+                    <p className="text-xs text-amber-700 dark:text-amber-300 mt-0.5">
+                      Inclui produtos críticos (risco imediato) e em atenção (risco moderado) que podem vencer sem intervenção.
+                    </p>
+                    <div className="grid grid-cols-3 gap-3 mt-3">
+                      <div className="bg-white dark:bg-amber-950/40 rounded-lg p-3 text-center border border-amber-100">
+                        <p className="text-sm font-bold text-red-600">{fmt(analiseFinanceira.perdaVencidos)}</p>
+                        <p className="text-[10px] text-muted-foreground mt-0.5">Já perdidos</p>
+                      </div>
+                      <div className="bg-white dark:bg-amber-950/40 rounded-lg p-3 text-center border border-amber-100">
+                        <p className="text-sm font-bold text-orange-600">{fmt(analiseFinanceira.perdaEmRisco)}</p>
+                        <p className="text-[10px] text-muted-foreground mt-0.5">Risco imediato</p>
+                      </div>
+                      <div className="bg-white dark:bg-amber-950/40 rounded-lg p-3 text-center border border-amber-100">
+                        <p className="text-sm font-bold text-amber-600">{fmt(analiseFinanceira.perdaAtencao)}</p>
+                        <p className="text-[10px] text-muted-foreground mt-0.5">Risco moderado</p>
+                      </div>
+                    </div>
+                    <div className="mt-3 flex items-center justify-between">
+                      <p className="text-xs text-amber-700 font-medium">Total estimado de perda evitável:</p>
+                      <p className="text-lg font-bold text-amber-800 dark:text-amber-200">{fmt(analiseFinanceira.perdaEstimadaSeInacao)}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
               {kpis.map((kpi, i) => (
                 <div

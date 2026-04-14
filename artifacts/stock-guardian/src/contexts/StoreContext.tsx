@@ -15,6 +15,17 @@ import {
 } from "@/services/mockData";
 import { getProductByBarcode, getAllProducts } from "@/services/productsDB";
 import { sincronizarComServidor } from "@/services/integracao";
+import {
+  initDB,
+  loadLots,
+  saveLot,
+  loadReposicoes,
+  saveReposicao,
+  loadNotifications,
+  saveNotification,
+  markNotificationRead,
+  markAllNotificationsRead,
+} from "@/services/neonDB";
 
 const DATA_VERSION = "real_v2_produtos_reais";
 
@@ -115,6 +126,32 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     if (lastSync) localStorage.setItem(STORAGE_KEYS.lastSync, lastSync);
   }, [lastSync]);
 
+  // Initialize DB and load data from Neon on first mount
+  useEffect(() => {
+    async function initAndLoad() {
+      const ok = await initDB();
+      if (!ok) return;
+      const [dbLots, dbRepos, dbNotifs] = await Promise.all([
+        loadLots(),
+        loadReposicoes(),
+        loadNotifications(),
+      ]);
+      if (dbLots.length > 0) {
+        setLots(dbLots);
+        saveToStorage(STORAGE_KEYS.lots, dbLots);
+      }
+      if (dbRepos.length > 0) {
+        setReposicoes(dbRepos);
+        saveToStorage(STORAGE_KEYS.reposicoes, dbRepos);
+      }
+      if (dbNotifs.length > 0) {
+        setNotifications(dbNotifs);
+        saveToStorage(STORAGE_KEYS.notifications, dbNotifs);
+      }
+    }
+    initAndLoad();
+  }, []);
+
   // Auto-sync on first load
   useEffect(() => {
     syncAPI();
@@ -122,6 +159,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const addLot = useCallback((lot: Lot) => {
     setLots((prev) => [lot, ...prev]);
+    saveLot(lot);
     const notif: Notification = {
       id: generateId("notif"),
       tipo: "lote",
@@ -131,10 +169,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       data: new Date().toISOString(),
     };
     setNotifications((prev) => [notif, ...prev]);
+    saveNotification(notif);
   }, []);
 
   const addReposicao = useCallback((record: ReposicaoRecord) => {
     setReposicoes((prev) => [record, ...prev]);
+    saveReposicao(record);
 
     if (record.erro_fifo) {
       const notif: Notification = {
@@ -146,6 +186,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         data: new Date().toISOString(),
       };
       setNotifications((prev) => [notif, ...prev]);
+      saveNotification(notif);
     }
   }, []);
 
@@ -158,6 +199,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         data: new Date().toISOString(),
       };
       setNotifications((prev) => [nova, ...prev]);
+      saveNotification(nova);
     },
     []
   );
@@ -171,12 +213,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         return n;
       })
     );
+    markAllNotificationsRead();
   }, []);
 
   const markOneRead = useCallback((id: string) => {
     setNotifications((prev) =>
       prev.map((n) => (n.id === id ? { ...n, lida: true } : n))
     );
+    markNotificationRead(id);
   }, []);
 
   const getNotificationsForUser = useCallback(
