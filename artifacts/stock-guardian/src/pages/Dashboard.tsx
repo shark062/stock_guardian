@@ -407,10 +407,15 @@ export default function Dashboard() {
           </div>
         )}
 
-        {isAdmin && showServerCfg && (
-          <ServerConfigPanel onSaved={() => toast.success("Configuração salva! Clique em Sincronizar para buscar dados do servidor.")} />
-        )}
       </div>
+
+      {isAdmin && showServerCfg && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm px-4" onClick={(e) => { if (e.target === e.currentTarget) setShowServerCfg(false); }}>
+          <div className="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl shadow-2xl">
+            <ServerConfigPanel onSaved={() => { toast.success("Configuração salva! Clique em Sincronizar para buscar dados do servidor."); setShowServerCfg(false); }} />
+          </div>
+        </div>
+      )}
     </Layout>
   );
 }

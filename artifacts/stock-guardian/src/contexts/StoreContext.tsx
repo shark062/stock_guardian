@@ -16,7 +16,7 @@ import {
 } from "@/services/mockData";
 import { sincronizarComServidor } from "@/services/integracao";
 
-const DATA_VERSION = "real_v1";
+const DATA_VERSION = "real_v2_produtos_reais";
 
 function clearMockDataIfNeeded() {
   if (localStorage.getItem("sg_data_version") !== DATA_VERSION) {
@@ -25,6 +25,8 @@ function clearMockDataIfNeeded() {
     localStorage.removeItem("sg_notifications");
     localStorage.removeItem("sg_last_sync");
     localStorage.removeItem("sg_last_sync_source");
+    localStorage.removeItem("sg_users_state");
+    localStorage.removeItem("sg_auth_store");
     localStorage.setItem("sg_data_version", DATA_VERSION);
   }
 }

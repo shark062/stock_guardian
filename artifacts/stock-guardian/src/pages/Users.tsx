@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Layout } from "@/components/Layout";
 import { mockUsers, User } from "@/services/mockData";
 import { useAuth } from "@/contexts/AuthContext";
+import { createTempPassword, deleteUserPassword, getUserHasPassword } from "@/services/api";
 import {
   Users as UsersIcon,
   Plus,
@@ -15,6 +16,11 @@ import {
   Check,
   Ban,
   Info,
+  Trash2,
+  KeyRound,
+  Copy,
+  CheckCheck,
+  ShieldOff,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -76,10 +82,11 @@ const roleConfig = {
   },
 };
 
-interface EditState {
-  nome: string;
-  role: User["role"];
-  ativo: boolean;
+function generatePassword(): string {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789@#";
+  let pass = "";
+  for (let i = 0; i < 10; i++) pass += chars[Math.floor(Math.random() * chars.length)];
+  return pass;
 }
 
 const STORAGE_KEY = "sg_users_state";
@@ -98,65 +105,154 @@ function saveUsers(users: User[]) {
   } catch {}
 }
 
+interface AddForm {
+  nome: string;
+  email: string;
+  username: string;
+  telefone: string;
+  role: User["role"];
+}
+
+interface EditForm {
+  nome: string;
+  email: string;
+  username: string;
+  telefone: string;
+  role: User["role"];
+  ativo: boolean;
+}
+
 export default function UsersPage() {
   const { isAdmin, user: loggedUser } = useAuth();
   const [users, setUsers] = useState<User[]>(loadUsers);
-  const [editingId, setEditingId] = useState<number | null>(null);
-  const [edit, setEdit] = useState<EditState>({ nome: "", role: "viewer", ativo: true });
   const [showAddModal, setShowAddModal] = useState(false);
+  const [editModal, setEditModal] = useState<User | null>(null);
+  const [deleteModal, setDeleteModal] = useState<User | null>(null);
+  const [tempPassModal, setTempPassModal] = useState<{ user: User; password: string } | null>(null);
   const [showPermModal, setShowPermModal] = useState<User["role"] | null>(null);
-  const [newUser, setNewUser] = useState({ nome: "", email: "", role: "viewer" as User["role"] });
   const [saving, setSaving] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const [addForm, setAddForm] = useState<AddForm>({ nome: "", email: "", username: "", telefone: "", role: "viewer" });
+  const [editForm, setEditForm] = useState<EditForm>({ nome: "", email: "", username: "", telefone: "", role: "viewer", ativo: true });
 
   const persist = (updated: User[]) => {
     setUsers(updated);
     saveUsers(updated);
   };
 
-  const handleEdit = (u: User) => {
-    setEditingId(u.id);
-    setEdit({ nome: u.nome, role: u.role, ativo: u.ativo });
-  };
-
-  const handleSave = async (u: User) => {
-    if (!edit.nome.trim()) {
-      toast.error("Nome não pode ficar em branco.");
-      return;
-    }
-    setSaving(true);
-    await new Promise((r) => setTimeout(r, 350));
-    const updated = users.map((item) =>
-      item.id === u.id
-        ? { ...item, nome: edit.nome.trim(), role: edit.role, ativo: edit.ativo }
-        : item
-    );
-    persist(updated);
-    setSaving(false);
-    setEditingId(null);
-    toast.success(`Usuário "${edit.nome.trim()}" atualizado.`);
-  };
-
   const handleAdd = async () => {
-    if (!newUser.nome.trim() || !newUser.email.trim()) {
-      toast.error("Nome e e-mail são obrigatórios.");
+    if (!addForm.nome.trim() || !addForm.email.trim() || !addForm.username.trim()) {
+      toast.error("Nome, e-mail e usuário são obrigatórios.");
+      return;
+    }
+    if (users.find((u) => u.email.toLowerCase() === addForm.email.trim().toLowerCase())) {
+      toast.error("Já existe um usuário com esse e-mail.");
+      return;
+    }
+    if (users.find((u) => u.username?.toLowerCase() === addForm.username.trim().toLowerCase())) {
+      toast.error("Esse nome de usuário já está em uso.");
       return;
     }
     setSaving(true);
     await new Promise((r) => setTimeout(r, 350));
-    const user: User = {
+
+    const tempPass = generatePassword();
+    const newUser: User = {
       id: Date.now(),
-      nome: newUser.nome.trim(),
-      email: newUser.email.trim(),
-      role: newUser.role,
+      nome: addForm.nome.trim(),
+      email: addForm.email.trim(),
+      username: addForm.username.trim(),
+      telefone: addForm.telefone.trim() || undefined,
+      role: addForm.role,
       ativo: true,
       criadoEm: new Date().toISOString().split("T")[0],
     };
-    const updated = [user, ...users];
-    persist(updated);
+
+    createTempPassword(newUser.email, tempPass);
+    persist([newUser, ...users]);
     setSaving(false);
     setShowAddModal(false);
-    setNewUser({ nome: "", email: "", role: "viewer" });
-    toast.success(`Usuário "${user.nome}" criado com sucesso.`);
+    setAddForm({ nome: "", email: "", username: "", telefone: "", role: "viewer" });
+    setTempPassModal({ user: newUser, password: tempPass });
+    toast.success(`Usuário "${newUser.nome}" criado!`);
+  };
+
+  const openEdit = (u: User) => {
+    setEditForm({ nome: u.nome, email: u.email, username: u.username || "", telefone: u.telefone || "", role: u.role, ativo: u.ativo });
+    setEditModal(u);
+  };
+
+  const handleSave = async () => {
+    if (!editForm.nome.trim() || !editForm.email.trim() || !editForm.username.trim()) {
+      toast.error("Nome, e-mail e usuário são obrigatórios.");
+      return;
+    }
+    if (users.find((u) => u.email.toLowerCase() === editForm.email.trim().toLowerCase() && u.id !== editModal!.id)) {
+      toast.error("Já existe outro usuário com esse e-mail.");
+      return;
+    }
+    if (users.find((u) => u.username?.toLowerCase() === editForm.username.trim().toLowerCase() && u.id !== editModal!.id)) {
+      toast.error("Esse nome de usuário já está em uso.");
+      return;
+    }
+    setSaving(true);
+    await new Promise((r) => setTimeout(r, 350));
+
+    const oldEmail = editModal!.email;
+    const newEmail = editForm.email.trim();
+
+    if (oldEmail !== newEmail) {
+      const store = JSON.parse(localStorage.getItem("sg_auth_store") || "{}");
+      if (store[oldEmail] !== undefined) {
+        store[newEmail] = store[oldEmail];
+        delete store[oldEmail];
+        localStorage.setItem("sg_auth_store", JSON.stringify(store));
+      }
+    }
+
+    const updated = users.map((u) =>
+      u.id === editModal!.id
+        ? { ...u, nome: editForm.nome.trim(), email: newEmail, username: editForm.username.trim(), telefone: editForm.telefone.trim() || undefined, role: editForm.role, ativo: editForm.ativo }
+        : u
+    );
+    persist(updated);
+    setSaving(false);
+    setEditModal(null);
+    toast.success(`Usuário "${editForm.nome.trim()}" atualizado.`);
+  };
+
+  const handleDelete = async (u: User) => {
+    setSaving(true);
+    await new Promise((r) => setTimeout(r, 300));
+    deleteUserPassword(u.email);
+    persist(users.filter((x) => x.id !== u.id));
+    setSaving(false);
+    setDeleteModal(null);
+    toast.success(`Usuário "${u.nome}" excluído.`);
+  };
+
+  const handleCreateTempPass = (u: User) => {
+    const tempPass = generatePassword();
+    createTempPassword(u.email, tempPass);
+    setTempPassModal({ user: u, password: tempPass });
+    toast.success("Senha temporária criada.");
+  };
+
+  const handleDeletePass = (u: User) => {
+    deleteUserPassword(u.email);
+    toast.success(`Senha de "${u.nome}" removida. O usuário não conseguirá fazer login.`);
+  };
+
+  const handleCopy = async () => {
+    if (!tempPassModal) return;
+    try {
+      await navigator.clipboard.writeText(tempPassModal.password);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      toast.error("Não foi possível copiar. Anote manualmente.");
+    }
   };
 
   const ativos = users.filter((u) => u.ativo).length;
@@ -224,123 +320,94 @@ export default function UsersPage() {
               <thead>
                 <tr className="bg-muted/40">
                   <th className="text-left px-5 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Usuário</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide hidden sm:table-cell">E-mail</th>
+                  <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide hidden md:table-cell">Contato</th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Permissão</th>
                   <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Status</th>
-                  <th className="text-left px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide hidden lg:table-cell">Criado em</th>
-                  {isAdmin && <th className="px-4 py-3 w-24" />}
+                  {isAdmin && <th className="px-4 py-3 text-right text-xs font-semibold text-muted-foreground uppercase tracking-wide">Ações</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
                 {users.map((u) => {
-                  const isEditing = editingId === u.id;
-                  const cfg = roleConfig[isEditing ? edit.role : u.role];
+                  const cfg = roleConfig[u.role];
                   const isMe = loggedUser?.email === u.email;
+                  const hasPass = getUserHasPassword(u.email);
 
                   return (
-                    <tr
-                      key={u.id}
-                      className={cn("hover:bg-muted/30 transition-colors", isMe && "bg-primary/5")}
-                    >
+                    <tr key={u.id} className={cn("hover:bg-muted/30 transition-colors", isMe && "bg-primary/5")}>
                       <td className="px-5 py-3">
                         <div className="flex items-center gap-2.5">
                           <div
                             className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0"
                             style={{ backgroundColor: "hsl(40, 54%, 54%)", color: "hsl(220, 73%, 12%)" }}
                           >
-                            {(isEditing ? edit.nome : u.nome).charAt(0).toUpperCase()}
+                            {u.nome.charAt(0).toUpperCase()}
                           </div>
                           <div>
-                            {isEditing ? (
-                              <input
-                                type="text"
-                                value={edit.nome}
-                                onChange={(e) => setEdit((p) => ({ ...p, nome: e.target.value }))}
-                                placeholder="Nome completo"
-                                autoFocus
-                                className="px-2 py-1 rounded text-sm bg-muted border border-primary/40 text-foreground outline-none focus:ring-2 focus:ring-primary/30 w-36"
-                              />
-                            ) : (
-                              <span className="font-medium text-foreground">
-                                {u.nome}
-                                {isMe && (
-                                  <span className="ml-1.5 text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded font-semibold">
-                                    Você
-                                  </span>
-                                )}
-                              </span>
-                            )}
+                            <div className="font-medium text-foreground flex items-center gap-1.5">
+                              {u.nome}
+                              {isMe && (
+                                <span className="text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded font-semibold">Você</span>
+                              )}
+                              {!hasPass && (
+                                <span className="text-[10px] bg-red-100 text-red-600 px-1.5 py-0.5 rounded font-semibold">Sem senha</span>
+                              )}
+                            </div>
+                            <div className="text-xs text-muted-foreground">@{u.username || u.email}</div>
                           </div>
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-muted-foreground text-xs hidden sm:table-cell">{u.email}</td>
-                      <td className="px-4 py-3">
-                        {isEditing ? (
-                          <select
-                            value={edit.role}
-                            onChange={(e) => setEdit((p) => ({ ...p, role: e.target.value as User["role"] }))}
-                            className="px-2 py-1 rounded text-xs bg-muted border border-border text-foreground outline-none"
-                          >
-                            <option value="admin">Administrador</option>
-                            <option value="operador">Operador</option>
-                            <option value="viewer">Visualizador</option>
-                          </select>
-                        ) : (
-                          <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold ${roleConfig[u.role].badge}`}>
-                            <cfg.icon className="w-3 h-3" />
-                            {roleConfig[u.role].label}
-                          </span>
-                        )}
+                      <td className="px-4 py-3 hidden md:table-cell">
+                        <div className="text-xs text-muted-foreground">{u.email}</div>
+                        {u.telefone && <div className="text-xs text-muted-foreground">{u.telefone}</div>}
                       </td>
                       <td className="px-4 py-3">
-                        {isEditing ? (
-                          <select
-                            value={edit.ativo ? "ativo" : "inativo"}
-                            onChange={(e) => setEdit((p) => ({ ...p, ativo: e.target.value === "ativo" }))}
-                            className="px-2 py-1 rounded text-xs bg-muted border border-border text-foreground outline-none"
-                          >
-                            <option value="ativo">Ativo</option>
-                            <option value="inativo">Inativo</option>
-                          </select>
-                        ) : (
-                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold ${u.ativo ? "bg-emerald-100 text-emerald-700" : "bg-gray-100 text-gray-500"}`}>
-                            <span className={`w-1.5 h-1.5 rounded-full ${u.ativo ? "bg-emerald-500" : "bg-gray-400"}`} />
-                            {u.ativo ? "Ativo" : "Inativo"}
-                          </span>
-                        )}
+                        <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold ${cfg.badge}`}>
+                          <cfg.icon className="w-3 h-3" />
+                          {cfg.label}
+                        </span>
                       </td>
-                      <td className="px-4 py-3 text-xs text-muted-foreground hidden lg:table-cell">
-                        {new Date(u.criadoEm + "T00:00:00").toLocaleDateString("pt-BR")}
+                      <td className="px-4 py-3">
+                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold ${u.ativo ? "bg-emerald-100 text-emerald-700" : "bg-gray-100 text-gray-500"}`}>
+                          <span className={`w-1.5 h-1.5 rounded-full ${u.ativo ? "bg-emerald-500" : "bg-gray-400"}`} />
+                          {u.ativo ? "Ativo" : "Inativo"}
+                        </span>
                       </td>
                       {isAdmin && (
                         <td className="px-4 py-3">
-                          {isEditing ? (
-                            <div className="flex items-center gap-1">
-                              <button
-                                onClick={() => handleSave(u)}
-                                disabled={saving}
-                                className="p-1.5 rounded-lg bg-emerald-100 text-emerald-700 hover:bg-emerald-200 transition-colors cursor-pointer disabled:opacity-50"
-                                title="Salvar"
-                              >
-                                {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
-                              </button>
-                              <button
-                                onClick={() => setEditingId(null)}
-                                className="p-1.5 rounded-lg bg-muted text-muted-foreground hover:bg-muted/80 transition-colors cursor-pointer"
-                                title="Cancelar"
-                              >
-                                <X className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
-                          ) : (
+                          <div className="flex items-center justify-end gap-1">
                             <button
-                              onClick={() => handleEdit(u)}
+                              onClick={() => handleCreateTempPass(u)}
+                              className="p-1.5 rounded-lg text-muted-foreground hover:bg-amber-100 hover:text-amber-700 transition-colors cursor-pointer"
+                              title="Criar senha temporária"
+                            >
+                              <KeyRound className="w-3.5 h-3.5" />
+                            </button>
+                            {hasPass && (
+                              <button
+                                onClick={() => handleDeletePass(u)}
+                                className="p-1.5 rounded-lg text-muted-foreground hover:bg-red-100 hover:text-red-600 transition-colors cursor-pointer"
+                                title="Apagar senha"
+                              >
+                                <ShieldOff className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                            <button
+                              onClick={() => openEdit(u)}
                               className="p-1.5 rounded-lg text-muted-foreground hover:bg-muted transition-colors cursor-pointer"
                               title="Editar usuário"
                             >
                               <Edit2 className="w-3.5 h-3.5" />
                             </button>
-                          )}
+                            {!isMe && (
+                              <button
+                                onClick={() => setDeleteModal(u)}
+                                className="p-1.5 rounded-lg text-muted-foreground hover:bg-red-100 hover:text-red-600 transition-colors cursor-pointer"
+                                title="Excluir usuário"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
                         </td>
                       )}
                     </tr>
@@ -362,9 +429,7 @@ export default function UsersPage() {
                   return (
                     <>
                       <R.icon className={`w-4 h-4 ${R.iconColor}`} />
-                      <h3 className="font-semibold text-foreground">
-                        Permissões — {R.label}
-                      </h3>
+                      <h3 className="font-semibold text-foreground">Permissões — {R.label}</h3>
                     </>
                   );
                 })()}
@@ -375,26 +440,14 @@ export default function UsersPage() {
             </div>
             <div className="px-6 py-5 space-y-2">
               {permissoesPorRole[showPermModal].map((p, i) => (
-                <div key={i} className={cn(
-                  "flex items-center gap-3 px-3 py-2.5 rounded-lg",
-                  p.ok ? "bg-emerald-50" : "bg-muted/60"
-                )}>
-                  {p.ok ? (
-                    <Check className="w-4 h-4 text-emerald-600 shrink-0" />
-                  ) : (
-                    <Ban className="w-4 h-4 text-muted-foreground shrink-0" />
-                  )}
-                  <span className={cn("text-sm", p.ok ? "text-emerald-800 font-medium" : "text-muted-foreground line-through")}>
-                    {p.label}
-                  </span>
+                <div key={i} className={cn("flex items-center gap-3 px-3 py-2.5 rounded-lg", p.ok ? "bg-emerald-50" : "bg-muted/60")}>
+                  {p.ok ? <Check className="w-4 h-4 text-emerald-600 shrink-0" /> : <Ban className="w-4 h-4 text-muted-foreground shrink-0" />}
+                  <span className={cn("text-sm", p.ok ? "text-emerald-800 font-medium" : "text-muted-foreground line-through")}>{p.label}</span>
                 </div>
               ))}
             </div>
             <div className="px-6 pb-5">
-              <button
-                onClick={() => setShowPermModal(null)}
-                className="w-full py-2 rounded-lg text-sm font-medium bg-muted hover:bg-muted/80 transition-colors cursor-pointer text-foreground"
-              >
+              <button onClick={() => setShowPermModal(null)} className="w-full py-2 rounded-lg text-sm font-medium bg-muted hover:bg-muted/80 transition-colors cursor-pointer text-foreground">
                 Fechar
               </button>
             </div>
@@ -404,8 +457,8 @@ export default function UsersPage() {
 
       {showAddModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm px-4 animate-fade-in">
-          <div className="bg-card rounded-2xl shadow-2xl w-full max-w-md border border-border">
-            <div className="px-6 py-5 border-b border-border flex items-center justify-between">
+          <div className="bg-card rounded-2xl shadow-2xl w-full max-w-md border border-border max-h-[90vh] overflow-y-auto">
+            <div className="px-6 py-5 border-b border-border flex items-center justify-between sticky top-0 bg-card z-10">
               <h3 className="font-semibold text-foreground">Novo Usuário</h3>
               <button onClick={() => setShowAddModal(false)} className="text-muted-foreground hover:text-foreground cursor-pointer">
                 <X className="w-5 h-5" />
@@ -414,59 +467,162 @@ export default function UsersPage() {
             <div className="px-6 py-5 space-y-4">
               <div>
                 <label className="block text-sm font-medium text-foreground mb-1.5">Nome completo *</label>
-                <input
-                  type="text"
-                  value={newUser.nome}
-                  onChange={(e) => setNewUser((p) => ({ ...p, nome: e.target.value }))}
-                  placeholder="Ex: Maria Silva"
-                  className="w-full px-3 py-2 rounded-lg text-sm bg-muted border border-border text-foreground outline-none focus:ring-2 focus:ring-primary/30"
-                  autoFocus
-                />
+                <input type="text" value={addForm.nome} onChange={(e) => setAddForm((p) => ({ ...p, nome: e.target.value }))} placeholder="Ex: Maria Silva" autoFocus className="w-full px-3 py-2 rounded-lg text-sm bg-muted border border-border text-foreground outline-none focus:ring-2 focus:ring-primary/30" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1.5">Nome de usuário (login) *</label>
+                <input type="text" value={addForm.username} onChange={(e) => setAddForm((p) => ({ ...p, username: e.target.value.replace(/\s/g, "_") }))} placeholder="Ex: maria_silva" className="w-full px-3 py-2 rounded-lg text-sm bg-muted border border-border text-foreground outline-none focus:ring-2 focus:ring-primary/30 font-mono" />
+                <p className="text-xs text-muted-foreground mt-1">Usado para fazer login no sistema</p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-foreground mb-1.5">E-mail *</label>
-                <input
-                  type="email"
-                  value={newUser.email}
-                  onChange={(e) => setNewUser((p) => ({ ...p, email: e.target.value }))}
-                  placeholder="Ex: maria@empresa.com"
-                  className="w-full px-3 py-2 rounded-lg text-sm bg-muted border border-border text-foreground outline-none focus:ring-2 focus:ring-primary/30"
-                />
+                <input type="email" value={addForm.email} onChange={(e) => setAddForm((p) => ({ ...p, email: e.target.value }))} placeholder="Ex: maria@empresa.com" className="w-full px-3 py-2 rounded-lg text-sm bg-muted border border-border text-foreground outline-none focus:ring-2 focus:ring-primary/30" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1.5">Telefone</label>
+                <input type="tel" value={addForm.telefone} onChange={(e) => setAddForm((p) => ({ ...p, telefone: e.target.value }))} placeholder="Ex: (11) 99999-9999" className="w-full px-3 py-2 rounded-lg text-sm bg-muted border border-border text-foreground outline-none focus:ring-2 focus:ring-primary/30" />
               </div>
               <div>
                 <label className="block text-sm font-medium text-foreground mb-1.5">Permissão</label>
-                <select
-                  value={newUser.role}
-                  onChange={(e) => setNewUser((p) => ({ ...p, role: e.target.value as User["role"] }))}
-                  className="w-full px-3 py-2 rounded-lg text-sm bg-muted border border-border text-foreground outline-none focus:ring-2 focus:ring-primary/30"
-                >
+                <select value={addForm.role} onChange={(e) => setAddForm((p) => ({ ...p, role: e.target.value as User["role"] }))} className="w-full px-3 py-2 rounded-lg text-sm bg-muted border border-border text-foreground outline-none focus:ring-2 focus:ring-primary/30">
                   <option value="admin">Administrador — acesso total</option>
                   <option value="operador">Operador — cadastra reposições</option>
                   <option value="viewer">Visualizador — somente leitura</option>
                 </select>
-                <p className="text-xs text-muted-foreground mt-1.5">
-                  {roleConfig[newUser.role].desc}
+                <p className="text-xs text-muted-foreground mt-1.5">{roleConfig[addForm.role].desc}</p>
+              </div>
+              <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">
+                <p className="text-xs text-amber-800">
+                  <strong>Senha temporária:</strong> Uma senha temporária será gerada automaticamente. Você poderá copiar e compartilhar com o usuário após a criação.
                 </p>
               </div>
             </div>
-            <div className="px-6 pb-5 flex justify-end gap-3">
-              <button
-                onClick={() => setShowAddModal(false)}
-                className="px-4 py-2 rounded-lg text-sm font-medium bg-muted text-muted-foreground hover:bg-muted/80 transition-colors cursor-pointer"
-              >
+            <div className="px-6 pb-5 flex justify-end gap-3 sticky bottom-0 bg-card border-t border-border pt-4">
+              <button onClick={() => setShowAddModal(false)} className="px-4 py-2 rounded-lg text-sm font-medium bg-muted text-muted-foreground hover:bg-muted/80 transition-colors cursor-pointer">
                 Cancelar
               </button>
-              <button
-                onClick={handleAdd}
-                disabled={saving || !newUser.nome || !newUser.email}
-                className="px-4 py-2 rounded-lg text-sm font-semibold transition-colors cursor-pointer disabled:opacity-50"
-                style={{ backgroundColor: "hsl(40, 54%, 54%)", color: "hsl(220, 73%, 12%)" }}
-              >
-                {saving ? (
-                  <span className="flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Criando...</span>
-                ) : (
-                  "Criar Usuário"
-                )}
+              <button onClick={handleAdd} disabled={saving || !addForm.nome || !addForm.email || !addForm.username} className="px-4 py-2 rounded-lg text-sm font-semibold transition-colors cursor-pointer disabled:opacity-50" style={{ backgroundColor: "hsl(40, 54%, 54%)", color: "hsl(220, 73%, 12%)" }}>
+                {saving ? <span className="flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Criando...</span> : "Criar Usuário"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {editModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm px-4 animate-fade-in">
+          <div className="bg-card rounded-2xl shadow-2xl w-full max-w-md border border-border max-h-[90vh] overflow-y-auto">
+            <div className="px-6 py-5 border-b border-border flex items-center justify-between sticky top-0 bg-card z-10">
+              <h3 className="font-semibold text-foreground">Editar Usuário</h3>
+              <button onClick={() => setEditModal(null)} className="text-muted-foreground hover:text-foreground cursor-pointer">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="px-6 py-5 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1.5">Nome completo *</label>
+                <input type="text" value={editForm.nome} onChange={(e) => setEditForm((p) => ({ ...p, nome: e.target.value }))} autoFocus className="w-full px-3 py-2 rounded-lg text-sm bg-muted border border-border text-foreground outline-none focus:ring-2 focus:ring-primary/30" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1.5">Nome de usuário (login) *</label>
+                <input type="text" value={editForm.username} onChange={(e) => setEditForm((p) => ({ ...p, username: e.target.value.replace(/\s/g, "_") }))} className="w-full px-3 py-2 rounded-lg text-sm bg-muted border border-border text-foreground outline-none focus:ring-2 focus:ring-primary/30 font-mono" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1.5">E-mail *</label>
+                <input type="email" value={editForm.email} onChange={(e) => setEditForm((p) => ({ ...p, email: e.target.value }))} className="w-full px-3 py-2 rounded-lg text-sm bg-muted border border-border text-foreground outline-none focus:ring-2 focus:ring-primary/30" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1.5">Telefone</label>
+                <input type="tel" value={editForm.telefone} onChange={(e) => setEditForm((p) => ({ ...p, telefone: e.target.value }))} placeholder="Ex: (11) 99999-9999" className="w-full px-3 py-2 rounded-lg text-sm bg-muted border border-border text-foreground outline-none focus:ring-2 focus:ring-primary/30" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1.5">Permissão</label>
+                <select value={editForm.role} onChange={(e) => setEditForm((p) => ({ ...p, role: e.target.value as User["role"] }))} className="w-full px-3 py-2 rounded-lg text-sm bg-muted border border-border text-foreground outline-none">
+                  <option value="admin">Administrador</option>
+                  <option value="operador">Operador</option>
+                  <option value="viewer">Visualizador</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-1.5">Status</label>
+                <select value={editForm.ativo ? "ativo" : "inativo"} onChange={(e) => setEditForm((p) => ({ ...p, ativo: e.target.value === "ativo" }))} className="w-full px-3 py-2 rounded-lg text-sm bg-muted border border-border text-foreground outline-none">
+                  <option value="ativo">Ativo</option>
+                  <option value="inativo">Inativo</option>
+                </select>
+              </div>
+            </div>
+            <div className="px-6 pb-5 flex justify-end gap-3 sticky bottom-0 bg-card border-t border-border pt-4">
+              <button onClick={() => setEditModal(null)} className="px-4 py-2 rounded-lg text-sm font-medium bg-muted text-muted-foreground hover:bg-muted/80 transition-colors cursor-pointer">
+                Cancelar
+              </button>
+              <button onClick={handleSave} disabled={saving} className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-colors cursor-pointer disabled:opacity-50" style={{ backgroundColor: "hsl(40, 54%, 54%)", color: "hsl(220, 73%, 12%)" }}>
+                {saving ? <><Loader2 className="w-4 h-4 animate-spin" /> Salvando...</> : <><Save className="w-4 h-4" /> Salvar</>}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {deleteModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm px-4 animate-fade-in">
+          <div className="bg-card rounded-2xl shadow-2xl w-full max-w-sm border border-border">
+            <div className="px-6 py-5">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center shrink-0">
+                  <Trash2 className="w-5 h-5 text-red-600" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-foreground">Excluir usuário</h3>
+                  <p className="text-sm text-muted-foreground">Esta ação não pode ser desfeita.</p>
+                </div>
+              </div>
+              <p className="text-sm text-foreground mb-6">
+                Tem certeza que deseja excluir <strong>{deleteModal.nome}</strong>? O acesso dele será removido permanentemente.
+              </p>
+              <div className="flex gap-3">
+                <button onClick={() => setDeleteModal(null)} className="flex-1 py-2 rounded-lg text-sm font-medium bg-muted text-muted-foreground hover:bg-muted/80 transition-colors cursor-pointer">
+                  Cancelar
+                </button>
+                <button onClick={() => handleDelete(deleteModal)} disabled={saving} className="flex-1 py-2 rounded-lg text-sm font-semibold bg-red-600 text-white hover:bg-red-700 transition-colors cursor-pointer disabled:opacity-50">
+                  {saving ? "Excluindo..." : "Excluir"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {tempPassModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm px-4 animate-fade-in">
+          <div className="bg-card rounded-2xl shadow-2xl w-full max-w-sm border border-border">
+            <div className="px-6 py-5 border-b border-border flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <KeyRound className="w-4 h-4 text-amber-600" />
+                <h3 className="font-semibold text-foreground">Senha Temporária</h3>
+              </div>
+              <button onClick={() => setTempPassModal(null)} className="text-muted-foreground hover:text-foreground cursor-pointer">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="px-6 py-5">
+              <p className="text-sm text-muted-foreground mb-4">
+                Senha temporária criada para <strong className="text-foreground">{tempPassModal.user.nome}</strong>. Copie e compartilhe com o usuário. Esta senha <strong>não será exibida novamente.</strong>
+              </p>
+              <div className="flex items-center gap-2 bg-muted rounded-lg px-4 py-3 mb-4">
+                <code className="flex-1 text-base font-mono font-bold text-foreground tracking-widest">
+                  {tempPassModal.password}
+                </code>
+                <button onClick={handleCopy} className="p-1.5 rounded text-muted-foreground hover:text-foreground transition-colors cursor-pointer shrink-0" title="Copiar senha">
+                  {copied ? <CheckCheck className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
+                </button>
+              </div>
+              <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5 mb-5">
+                <p className="text-xs text-amber-800">
+                  O usuário pode fazer login com essa senha. Recomende que ele a troque após o primeiro acesso.
+                </p>
+              </div>
+              <button onClick={() => setTempPassModal(null)} className="w-full py-2 rounded-lg text-sm font-medium bg-muted hover:bg-muted/80 transition-colors cursor-pointer text-foreground">
+                Fechar
               </button>
             </div>
           </div>
