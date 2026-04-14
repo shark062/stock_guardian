@@ -4,11 +4,11 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { useStore } from "@/contexts/StoreContext";
 import { useAuth } from "@/contexts/AuthContext";
 import {
-  mockProducts,
   getProductStatus,
   getDaysToExpire,
   ProductStatus,
 } from "@/services/mockData";
+import { getAllProducts, getCategories } from "@/services/productsDB";
 import { gerarPDFSecao, gerarPDF } from "@/services/pdfExport";
 import {
   FileText,
@@ -49,13 +49,11 @@ export default function Reports() {
   const [dataFim, setDataFim] = useState("");
   const [categoria, setCategoria] = useState("");
 
-  const categorias = useMemo(() => {
-    const cats = new Set(mockProducts.map((p) => p.categoria));
-    return Array.from(cats).sort();
-  }, []);
+  const allProducts = useMemo(() => getAllProducts(), []);
+  const categorias = useMemo(() => getCategories(), []);
 
   const filtered = useMemo(() => {
-    return mockProducts.filter((p) => {
+    return allProducts.filter((p) => {
       const status = getProductStatus(p.validade);
       const matchStatus = statusFilter === "todos" || status === statusFilter;
       const valDate = new Date(p.validade + "T00:00:00");
@@ -64,22 +62,23 @@ export default function Reports() {
       const matchCategoria = !categoria || p.categoria === categoria;
       return matchStatus && matchInicio && matchFim && matchCategoria;
     });
-  }, [statusFilter, dataInicio, dataFim, categoria]);
+  }, [allProducts, statusFilter, dataInicio, dataFim, categoria]);
 
   const analiseFinanceira = useMemo(() => {
-    const vencidos = mockProducts.filter((p) => getProductStatus(p.validade) === "vencido");
-    const criticos = mockProducts.filter((p) => getProductStatus(p.validade) === "critico");
-    const atencao = mockProducts.filter((p) => getProductStatus(p.validade) === "atencao");
+    const vencidos = allProducts.filter((p) => getProductStatus(p.validade) === "vencido");
+    const criticos = allProducts.filter((p) => getProductStatus(p.validade) === "critico");
+    const atencao = allProducts.filter((p) => getProductStatus(p.validade) === "atencao");
 
     const perdaVencidos = vencidos.reduce((acc, p) => acc + p.custo * p.quantidade, 0);
     const perdaEmRisco = criticos.reduce((acc, p) => acc + p.custo * p.quantidade, 0);
     const perdaAtencao = atencao.reduce((acc, p) => acc + p.custo * p.quantidade * 0.5, 0);
 
-    const margemBrutaTotal = lots.reduce(
-      (acc, l) => acc + (l.precoVenda - l.custo) * l.quantidade,
+    // Margem calculada direto dos produtos reais (preço - custo)
+    const margemBrutaTotal = allProducts.reduce(
+      (acc, p) => acc + (p.preco - p.custo) * p.quantidade,
       0
     );
-    const custoTotalEstoque = lots.reduce((acc, l) => acc + l.custo * l.quantidade, 0);
+    const custoTotalEstoque = allProducts.reduce((acc, p) => acc + p.custo * p.quantidade, 0);
     const margemPct = custoTotalEstoque > 0 ? (margemBrutaTotal / custoTotalEstoque) * 100 : 0;
 
     const totalReposicoes = reposicoes.length;
@@ -87,15 +86,9 @@ export default function Reports() {
     const taxaFifo = totalReposicoes > 0 ? ((totalReposicoes - errosFifo) / totalReposicoes) * 100 : 100;
 
     const porCategoria = categorias.map((cat) => {
-      const prods = mockProducts.filter((p) => p.categoria === cat);
-      const lotsCategoria = lots.filter((l) =>
-        prods.some((p) => p.codigoBarras === l.produtoCodigo)
-      );
-      const margem = lotsCategoria.reduce(
-        (acc, l) => acc + (l.precoVenda - l.custo) * l.quantidade,
-        0
-      );
-      const custo = lotsCategoria.reduce((acc, l) => acc + l.custo * l.quantidade, 0);
+      const prods = allProducts.filter((p) => p.categoria === cat);
+      const margem = prods.reduce((acc, p) => acc + (p.preco - p.custo) * p.quantidade, 0);
+      const custo = prods.reduce((acc, p) => acc + p.custo * p.quantidade, 0);
       const margemPctCat = custo > 0 ? (margem / custo) * 100 : 0;
       const emRisco = prods.filter((p) => {
         const s = getProductStatus(p.validade);
@@ -134,7 +127,7 @@ export default function Reports() {
       maxPerda,
       maxMargem,
     };
-  }, [lots, reposicoes, categorias]);
+  }, [allProducts, lots, reposicoes, categorias]);
 
   const handleExportCompleto = () => {
     gerarPDFSecao(
@@ -564,7 +557,7 @@ export default function Reports() {
                   <tfoot>
                     <tr className="bg-muted/40 font-bold">
                       <td className="px-4 py-2.5 text-foreground">TOTAL</td>
-                      <td className="px-4 py-2.5 text-right text-muted-foreground">{mockProducts.length}</td>
+                      <td className="px-4 py-2.5 text-right text-muted-foreground">{allProducts.length}</td>
                       <td className="px-4 py-2.5 text-right text-emerald-600">{fmt(analiseFinanceira.margemBrutaTotal)}</td>
                       <td className="px-4 py-2.5 text-right">
                         <span className={cn(

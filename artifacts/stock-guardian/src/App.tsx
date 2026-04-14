@@ -12,6 +12,8 @@ import AuditLog from "@/pages/AuditLog";
 import Reposicao from "@/pages/Reposicao";
 import Promocoes from "@/pages/Promocoes";
 import Eficiencia from "@/pages/Eficiencia";
+import Consulta from "@/pages/Consulta";
+import ImportarDados from "@/pages/ImportarDados";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -74,6 +76,12 @@ function Router() {
       </Route>
       <Route path="/auditoria">
         {() => <PrivateRoute component={AuditLog} adminOnly />}
+      </Route>
+      <Route path="/consulta">
+        {() => <PrivateRoute component={Consulta} />}
+      </Route>
+      <Route path="/importar">
+        {() => <PrivateRoute component={ImportarDados} adminOnly />}
       </Route>
       <Route path="/">
         {() => user ? <Redirect to="/dashboard" /> : <Redirect to="/login" />}

@@ -12,6 +12,8 @@ import {
   Tag,
   BarChart3,
   X,
+  ScanBarcode,
+  Upload,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
@@ -26,12 +28,14 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/consulta", label: "Consultar Produto", icon: ScanBarcode },
   { href: "/produtos", label: "Produtos", icon: Package },
   { href: "/reposicao", label: "Reposição", icon: RefreshCw, operadorPlus: true },
   { href: "/promocoes", label: "Promoções", icon: Tag },
   { href: "/eficiencia", label: "Eficiência", icon: BarChart3, adminOnly: true },
   { href: "/relatorios", label: "Relatórios", icon: FileText },
   { href: "/usuarios", label: "Usuários", icon: Users, adminOnly: true },
+  { href: "/importar", label: "Importar Dados", icon: Upload, adminOnly: true },
   { href: "/auditoria", label: "Auditoria", icon: ClipboardList, adminOnly: true },
 ];
 

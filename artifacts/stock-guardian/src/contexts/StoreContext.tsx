@@ -11,9 +11,9 @@ import {
   Lot,
   ReposicaoRecord,
   Notification,
-  mockProducts,
   getDaysToExpire,
 } from "@/services/mockData";
+import { getProductByBarcode, getAllProducts } from "@/services/productsDB";
 import { sincronizarComServidor } from "@/services/integracao";
 
 const DATA_VERSION = "real_v2_produtos_reais";
@@ -278,7 +278,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     lots.forEach((lot) => {
       const dias = getDaysToExpire(lot.validade);
       if (dias <= 15 && lot.quantidade > 0 && !seen.has(lot.id)) {
-        const produto = mockProducts.find((p) => p.codigoBarras === lot.produtoCodigo);
+        const produto = getProductByBarcode(lot.produtoCodigo);
         if (produto) {
           result.push({ produto, lot, diasRestantes: dias });
           seen.add(lot.id);
@@ -296,7 +296,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   return (
     <StoreContext.Provider
       value={{
-        products: mockProducts,
+        products: getAllProducts(),
         lots,
         reposicoes,
         notifications,

@@ -4,7 +4,8 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { ServerConfigPanel } from "@/components/ServerConfig";
 import { useStore } from "@/contexts/StoreContext";
 import { useAuth } from "@/contexts/AuthContext";
-import { mockProducts, getProductStatus, getDaysToExpire } from "@/services/mockData";
+import { getProductStatus, getDaysToExpire } from "@/services/mockData";
+import { getAllProducts, getTotalCount } from "@/services/productsDB";
 import { gerarTodasSugestoes } from "@/services/promocoes";
 import {
   Package,
@@ -34,9 +35,10 @@ export default function Dashboard() {
   const sugestoes = useMemo(() => gerarTodasSugestoes(lots), [lots]);
 
   const stats = useMemo(() => {
-    const total = mockProducts.length;
+    const all = getAllProducts();
+    const total = all.length;
     let vencidos = 0, criticos = 0, atencao = 0, ok = 0;
-    for (const p of mockProducts) {
+    for (const p of all) {
       const s = getProductStatus(p.validade);
       if (s === "vencido") vencidos++;
       else if (s === "critico") criticos++;
@@ -46,16 +48,16 @@ export default function Dashboard() {
     return { total, vencidos, criticos, atencao, ok };
   }, []);
 
-  const alertProducts = useMemo(() =>
-    mockProducts
+  const alertProducts = useMemo(() => {
+    const all = getAllProducts();
+    return all
       .filter((p) => {
         const s = getProductStatus(p.validade);
         return s === "vencido" || s === "critico";
       })
       .sort((a, b) => new Date(a.validade).getTime() - new Date(b.validade).getTime())
-      .slice(0, 6),
-    []
-  );
+      .slice(0, 6);
+  }, []);
 
   const totalErrosFifo = reposicoes.filter((r) => r.erro_fifo).length;
   const notifNaoLidas = notifications.filter((n) => !n.lida).length;
