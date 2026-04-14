@@ -33,29 +33,33 @@ export async function consultarProdutoExterno(
 }
 
 export async function simularLogin(
-  email: string,
+  login: string,
   senha: string
 ): Promise<{ token: string; user: { id: number; nome: string; email: string; role: string } }> {
   await delay(800);
 
-  const usuarios: Record<string, { id: number; nome: string; role: string; senha: string }> = {
-    "admin@stockguardian.com": { id: 1, nome: "Admin Master", role: "admin", senha: "admin123" },
-    "carlos@stockguardian.com": { id: 2, nome: "Carlos Operador", role: "operador", senha: "carlos123" },
-    "fernanda@stockguardian.com": { id: 3, nome: "Fernanda Viewer", role: "viewer", senha: "fernanda123" },
-  };
+  const usuarios: Array<{ id: number; nome: string; username: string; email: string; role: string; senha: string }> = [
+    { id: 1, nome: "Alex Sousa", username: "Alex_Sousa", email: "alex@stockguardian.com", role: "admin", senha: "12345" },
+    { id: 2, nome: "Carlos Operador", username: "carlos", email: "carlos@stockguardian.com", role: "operador", senha: "carlos123" },
+    { id: 3, nome: "Fernanda Viewer", username: "fernanda", email: "fernanda@stockguardian.com", role: "viewer", senha: "fernanda123" },
+  ];
 
-  const usuario = usuarios[email];
+  const loginLower = login.trim().toLowerCase();
+  const usuario = usuarios.find(
+    (u) => u.email.toLowerCase() === loginLower || u.username.toLowerCase() === loginLower
+  );
+
   if (!usuario || usuario.senha !== senha) {
-    throw new Error("Email ou senha inválidos");
+    throw new Error("Usuário ou senha inválidos");
   }
 
-  const token = btoa(`${email}:${Date.now()}:${Math.random()}`);
+  const token = btoa(`${usuario.email}:${Date.now()}:${Math.random()}`);
   return {
     token,
     user: {
       id: usuario.id,
       nome: usuario.nome,
-      email,
+      email: usuario.email,
       role: usuario.role,
     },
   };

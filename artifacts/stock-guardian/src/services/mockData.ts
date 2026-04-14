@@ -66,7 +66,7 @@ export interface AuditLog {
 }
 
 export const mockUsers: User[] = [
-  { id: 1, nome: "Admin Master", email: "admin@stockguardian.com", role: "admin", ativo: true, criadoEm: "2024-01-15" },
+  { id: 1, nome: "Alex Sousa", email: "alex@stockguardian.com", role: "admin", ativo: true, criadoEm: "2024-01-15" },
   { id: 2, nome: "Carlos Operador", email: "carlos@stockguardian.com", role: "operador", ativo: true, criadoEm: "2024-02-10" },
   { id: 3, nome: "Fernanda Viewer", email: "fernanda@stockguardian.com", role: "viewer", ativo: true, criadoEm: "2024-03-05" },
   { id: 4, nome: "João Silva", email: "joao@stockguardian.com", role: "operador", ativo: false, criadoEm: "2024-01-20" },

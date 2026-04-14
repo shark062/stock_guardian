@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
-import { Eye, EyeOff, Lock, Mail, AlertCircle } from "lucide-react";
+import { Eye, EyeOff, Lock, User, AlertCircle } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { Footer } from "@/components/Footer";
 import appIcon from "@assets/1775751717154_1775752093514.png";
@@ -66,13 +66,13 @@ export default function Login() {
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-slate-300 mb-1.5" htmlFor="email">
-                  E-mail
+                  Usuário ou E-mail
                 </label>
                 <div className="relative">
-                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+                  <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
                   <input
                     id="email"
-                    type="email"
+                    type="text"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     className="w-full pl-10 pr-4 py-2.5 rounded-lg text-sm text-white placeholder-slate-500 outline-none focus:ring-2 transition-all"
@@ -80,9 +80,9 @@ export default function Login() {
                       backgroundColor: "rgba(255,255,255,0.06)",
                       border: "1px solid rgba(255,255,255,0.10)",
                     }}
-                    placeholder="seu@email.com"
+                    placeholder="Seu usuário ou e-mail"
                     data-testid="input-email"
-                    autoComplete="email"
+                    autoComplete="username"
                   />
                 </div>
               </div>
@@ -136,29 +136,6 @@ export default function Login() {
               </button>
             </form>
 
-            {/* Demo users hint */}
-            <div className="mt-6 pt-6 border-t" style={{ borderColor: "rgba(255,255,255,0.08)" }}>
-              <p className="text-xs text-slate-500 mb-3 font-medium uppercase tracking-wide">Usuários de demonstração</p>
-              <div className="space-y-2">
-                {[
-                  { email: "admin@stockguardian.com", senha: "admin123", role: "Admin" },
-                  { email: "carlos@stockguardian.com", senha: "carlos123", role: "Operador" },
-                  { email: "fernanda@stockguardian.com", senha: "fernanda123", role: "Viewer" },
-                ].map((u) => (
-                  <button
-                    key={u.email}
-                    type="button"
-                    onClick={() => { setEmail(u.email); setSenha(u.senha); }}
-                    className="w-full text-left px-3 py-2 rounded-lg text-xs transition-all cursor-pointer"
-                    style={{ backgroundColor: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)" }}
-                    data-testid={`btn-demo-${u.role.toLowerCase()}`}
-                  >
-                    <span className="font-medium text-slate-300">{u.role}</span>
-                    <span className="text-slate-500 ml-2">{u.email}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
           </div>
         </div>
       </div>
