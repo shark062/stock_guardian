@@ -3,6 +3,7 @@ import { Layout } from "@/components/Layout";
 import { useAuth } from "@/contexts/AuthContext";
 import { getProductByBarcode, searchProducts } from "@/services/productsDB";
 import { Product } from "@/services/mockData";
+import { BarcodeScanner } from "@/components/BarcodeScanner";
 import {
   Barcode,
   Search,
@@ -12,6 +13,7 @@ import {
   Tag,
   ChevronRight,
   X,
+  ScanLine,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
