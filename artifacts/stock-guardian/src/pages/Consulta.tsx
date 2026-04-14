@@ -109,7 +109,14 @@ export default function Consulta() {
   const [result, setResult] = useState<Product | null>(null);
   const [suggestions, setSuggestions] = useState<Product[]>([]);
   const [notFound, setNotFound] = useState(false);
+  const [showScanner, setShowScanner] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const handleBarcode = (code: string) => {
+    setShowScanner(false);
+    handleSearch(code);
+    setQuery(code);
+  };
 
   const handleSearch = (val: string) => {
     setQuery(val);
@@ -163,6 +170,12 @@ export default function Consulta() {
 
   return (
     <Layout title="Consulta de Produto">
+      {showScanner && (
+        <BarcodeScanner
+          onDetected={handleBarcode}
+          onClose={() => setShowScanner(false)}
+        />
+      )}
       <div className="max-w-lg mx-auto space-y-5">
         <div className="bg-card rounded-2xl border border-card-border shadow-sm p-5">
           <p className="text-sm text-muted-foreground mb-4">
@@ -187,6 +200,13 @@ export default function Consulta() {
                   <X className="w-4 h-4" />
                 </button>
               )}
+              <button
+                onClick={() => setShowScanner(true)}
+                className="text-muted-foreground hover:text-primary transition-colors cursor-pointer"
+                title="Escanear código de barras"
+              >
+                <ScanLine className="w-4 h-4" />
+              </button>
               <Search className="w-4 h-4 text-muted-foreground shrink-0" />
             </div>
 
