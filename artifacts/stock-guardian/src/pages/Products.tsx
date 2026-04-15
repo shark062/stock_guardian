@@ -1,8 +1,9 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
+import { useSearch } from "wouter";
 import { Layout } from "@/components/Layout";
 import { StatusBadge } from "@/components/StatusBadge";
 import { getProductStatus, getDaysToExpire, Product } from "@/services/mockData";
-import { getPage, getCategories, applyProductOverride, getTotalCount } from "@/services/productsDB";
+import { getPage, getCategories, applyProductOverride, getTotalCount, addProduct } from "@/services/productsDB";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   Search,
@@ -12,7 +13,6 @@ import {
   Save,
   Loader2,
   Package,
-  Filter,
   ChevronLeft,
   ChevronRight,
   Barcode,
@@ -23,8 +23,14 @@ type Filtro = "todos" | "ok" | "atencao" | "critico" | "vencido";
 
 const PAGE_SIZE = 50;
 
+const CATEGORIAS_PADRAO = [
+  "Laticínios", "Padaria", "Frios e Embutidos", "Bebidas", "Hortifruti",
+  "Carnes", "Congelados", "Mercearia", "Higiene e Beleza", "Limpeza", "Outros",
+];
+
 export default function Products() {
   const { canEdit, isAdmin } = useAuth();
+  const search_qs = useSearch();
   const [search, setSearch] = useState("");
   const [searchInput, setSearchInput] = useState("");
   const [filtro] = useState<Filtro>("todos");
@@ -37,6 +43,29 @@ export default function Products() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [saveLoading, setSaveLoading] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
+
+  const [newNome, setNewNome] = useState("");
+  const [newBarcode, setNewBarcode] = useState("");
+  const [newCategoria, setNewCategoria] = useState("");
+  const [newPreco, setNewPreco] = useState("");
+  const [newCusto, setNewCusto] = useState("");
+  const [newValidade, setNewValidade] = useState("");
+  const [newQtd, setNewQtd] = useState("1");
+
+  useEffect(() => {
+    const params = new URLSearchParams(search_qs);
+    const barcode = params.get("barcode");
+    if (barcode && canEdit) {
+      setNewBarcode(barcode);
+      setNewNome("");
+      setNewCategoria("");
+      setNewPreco("");
+      setNewCusto("");
+      setNewValidade("");
+      setNewQtd("1");
+      setShowAddModal(true);
+    }
+  }, [search_qs, canEdit]);
 
   const categories = useMemo(() => getCategories(), []);
 
@@ -340,29 +369,157 @@ export default function Products() {
 
       {showAddModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm px-4 animate-fade-in">
-          <div className="bg-card rounded-2xl shadow-2xl w-full max-w-md border border-border">
-            <div className="px-6 py-5 border-b border-border flex items-center justify-between">
-              <h3 className="font-semibold text-foreground">Cadastrar Produto</h3>
+          <div className="bg-card rounded-2xl shadow-2xl w-full max-w-md border border-border max-h-[90vh] overflow-y-auto">
+            <div className="px-6 py-5 border-b border-border flex items-center justify-between sticky top-0 bg-card z-10">
+              <div className="flex items-center gap-2">
+                <Package className="w-4 h-4 text-primary" />
+                <h3 className="font-semibold text-foreground">Cadastrar Produto</h3>
+              </div>
               <button onClick={() => setShowAddModal(false)} className="text-muted-foreground hover:text-foreground cursor-pointer">
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <div className="px-6 py-5">
-              <p className="text-sm text-muted-foreground">
-                Para cadastrar em massa, use a opção <strong>Importar Dados</strong> no menu do administrador.
-              </p>
-              <p className="text-sm text-muted-foreground mt-3">
-                Para consultar um produto pelo código de barras, use a opção <strong>Consultar Produto</strong>.
-              </p>
-            </div>
-            <div className="px-6 pb-5 flex justify-end">
-              <button
-                onClick={() => setShowAddModal(false)}
-                className="px-4 py-2 rounded-lg text-sm font-medium bg-muted text-muted-foreground hover:bg-muted/80 transition-colors cursor-pointer"
-              >
-                Fechar
-              </button>
-            </div>
+
+            <form
+              className="px-6 py-5 space-y-4"
+              onSubmit={async (e) => {
+                e.preventDefault();
+                if (!newNome.trim() || !newBarcode.trim()) {
+                  toast.error("Nome e código de barras são obrigatórios");
+                  return;
+                }
+                setSaveLoading(true);
+                await new Promise((r) => setTimeout(r, 150));
+                addProduct({
+                  nome: newNome.trim(),
+                  codigoBarras: newBarcode.trim(),
+                  categoria: newCategoria || "Outros",
+                  preco: parseFloat(newPreco.replace(",", ".")) || 0,
+                  custo: parseFloat(newCusto.replace(",", ".")) || 0,
+                  validade: newValidade || new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10),
+                  quantidade: parseInt(newQtd) || 1,
+                });
+                setRefreshKey((k) => k + 1);
+                setSaveLoading(false);
+                setShowAddModal(false);
+                toast.success(`Produto "${newNome.trim()}" cadastrado com sucesso!`);
+                setNewNome(""); setNewBarcode(""); setNewCategoria(""); setNewPreco(""); setNewCusto(""); setNewValidade(""); setNewQtd("1");
+              }}
+            >
+              <div>
+                <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">
+                  Código de Barras <span className="text-red-500">*</span>
+                </label>
+                <div className="flex items-center gap-2 px-3 py-2.5 rounded-lg bg-muted border border-border focus-within:ring-2 focus-within:ring-primary/30">
+                  <Barcode className="w-4 h-4 text-muted-foreground shrink-0" />
+                  <input
+                    type="text"
+                    value={newBarcode}
+                    onChange={(e) => setNewBarcode(e.target.value)}
+                    placeholder="Ex: 7891000315507"
+                    className="flex-1 bg-transparent text-foreground placeholder-muted-foreground outline-none text-sm font-mono"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">
+                  Nome do Produto <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={newNome}
+                  onChange={(e) => setNewNome(e.target.value)}
+                  placeholder="Ex: Leite Integral 1L"
+                  className="w-full px-3 py-2.5 rounded-lg text-sm bg-muted border border-border text-foreground placeholder-muted-foreground outline-none focus:ring-2 focus:ring-primary/30"
+                  required
+                  autoFocus={!newBarcode}
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">Categoria</label>
+                <select
+                  value={newCategoria}
+                  onChange={(e) => setNewCategoria(e.target.value)}
+                  className="w-full px-3 py-2.5 rounded-lg text-sm bg-muted border border-border text-foreground outline-none focus:ring-2 focus:ring-primary/30 cursor-pointer"
+                >
+                  <option value="">Selecione uma categoria</option>
+                  {[...new Set([...CATEGORIAS_PADRAO, ...categories])].map((c) => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">Preço de Venda</label>
+                  <input
+                    type="number"
+                    value={newPreco}
+                    onChange={(e) => setNewPreco(e.target.value)}
+                    placeholder="0,00"
+                    step="0.01"
+                    min="0"
+                    className="w-full px-3 py-2.5 rounded-lg text-sm bg-muted border border-border text-foreground placeholder-muted-foreground outline-none focus:ring-2 focus:ring-primary/30"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">Preço de Custo</label>
+                  <input
+                    type="number"
+                    value={newCusto}
+                    onChange={(e) => setNewCusto(e.target.value)}
+                    placeholder="0,00"
+                    step="0.01"
+                    min="0"
+                    className="w-full px-3 py-2.5 rounded-lg text-sm bg-muted border border-border text-foreground placeholder-muted-foreground outline-none focus:ring-2 focus:ring-primary/30"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">Validade</label>
+                  <input
+                    type="date"
+                    value={newValidade}
+                    onChange={(e) => setNewValidade(e.target.value)}
+                    className="w-full px-3 py-2.5 rounded-lg text-sm bg-muted border border-border text-foreground outline-none focus:ring-2 focus:ring-primary/30"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1.5">Quantidade</label>
+                  <input
+                    type="number"
+                    value={newQtd}
+                    onChange={(e) => setNewQtd(e.target.value)}
+                    min="0"
+                    className="w-full px-3 py-2.5 rounded-lg text-sm bg-muted border border-border text-foreground outline-none focus:ring-2 focus:ring-primary/30"
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowAddModal(false)}
+                  className="flex-1 px-4 py-2.5 rounded-lg text-sm font-medium bg-muted text-muted-foreground hover:bg-muted/80 transition-colors cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={saveLoading}
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold transition-colors cursor-pointer disabled:opacity-50"
+                  style={{ backgroundColor: "hsl(40, 54%, 54%)", color: "hsl(220, 73%, 12%)" }}
+                >
+                  {saveLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                  Cadastrar
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

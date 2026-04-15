@@ -1,4 +1,5 @@
 import { useState, useRef } from "react";
+import { useLocation } from "wouter";
 import { Layout } from "@/components/Layout";
 import { useAuth } from "@/contexts/AuthContext";
 import { getProductByBarcode, searchProducts } from "@/services/productsDB";
@@ -105,6 +106,7 @@ function ProductCard({ product, isAdmin }: { product: Product; isAdmin: boolean 
 
 export default function Consulta() {
   const { isAdmin } = useAuth();
+  const [, navigate] = useLocation();
   const [query, setQuery] = useState("");
   const [result, setResult] = useState<Product | null>(null);
   const [suggestions, setSuggestions] = useState<Product[]>([]);
@@ -114,8 +116,22 @@ export default function Consulta() {
 
   const handleBarcode = (code: string) => {
     setShowScanner(false);
-    handleSearch(code);
     setQuery(code);
+    const exact = getProductByBarcode(code.trim());
+    if (exact) {
+      setResult(exact);
+      setSuggestions([]);
+      setNotFound(false);
+      return;
+    }
+    const sugs = searchProducts(code.trim(), 8);
+    if (sugs.length > 0) {
+      setSuggestions(sugs);
+      setResult(null);
+      setNotFound(false);
+    } else {
+      navigate(`/produtos?barcode=${encodeURIComponent(code)}`);
+    }
   };
 
   const handleSearch = (val: string) => {

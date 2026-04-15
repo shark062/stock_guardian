@@ -6,6 +6,21 @@ let _products: Product[] = [];
 let _byBarcode: Map<string, Product> = new Map();
 let _byId: Map<number, Product> = new Map();
 
+const CUSTOM_PRODUCTS_KEY = "sg_custom_products";
+
+function loadCustomProducts(): Product[] {
+  try {
+    const raw = localStorage.getItem(CUSTOM_PRODUCTS_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveCustomProducts(products: Product[]) {
+  localStorage.setItem(CUSTOM_PRODUCTS_KEY, JSON.stringify(products));
+}
+
 function ensureLoaded() {
   if (_loaded) return;
   _products = realProducts.map((r: RealProduct): Product => ({
@@ -18,6 +33,10 @@ function ensureLoaded() {
     categoria: r.categoria,
     quantidade: r.quantidade,
   }));
+
+  const custom = loadCustomProducts();
+  _products = [..._products, ...custom];
+
   _byBarcode = new Map(_products.map((p) => [p.codigoBarras, p]));
   _byId = new Map(_products.map((p) => [p.id, p]));
 
@@ -33,6 +52,29 @@ function ensureLoaded() {
     }
   });
   _loaded = true;
+}
+
+export interface NewProduct {
+  nome: string;
+  codigoBarras: string;
+  categoria: string;
+  preco: number;
+  custo: number;
+  validade: string;
+  quantidade: number;
+}
+
+export function addProduct(np: NewProduct): Product {
+  ensureLoaded();
+  const maxId = _products.reduce((m, p) => Math.max(m, p.id), 0);
+  const p: Product = { id: maxId + 1, ...np };
+  _products.push(p);
+  _byBarcode.set(p.codigoBarras, p);
+  _byId.set(p.id, p);
+  const existing = loadCustomProducts();
+  existing.push(p);
+  saveCustomProducts(existing);
+  return p;
 }
 
 export interface ProductOverride {
