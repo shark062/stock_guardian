@@ -11,6 +11,17 @@ import {
 import { getAllProducts, getCategories } from "@/services/productsDB";
 import { gerarPDFSecao, gerarPDF } from "@/services/pdfExport";
 import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+  Cell,
+} from "recharts";
+import {
   FileText,
   Download,
   Filter,
@@ -370,6 +381,125 @@ export default function Reports() {
                     <p className="text-[10px] text-muted-foreground mt-0.5">{r.sub}</p>
                   </div>
                 ))}
+              </div>
+            </div>
+
+            {/* Gráfico: Análise por Categoria */}
+            <div className="bg-card rounded-xl border border-card-border shadow-sm overflow-hidden">
+              <div className="px-5 py-4 border-b border-border flex items-center gap-2">
+                <BarChart3 className="w-4 h-4 text-primary" />
+                <span className="font-semibold text-sm text-foreground">Análise Financeira por Categoria</span>
+                <span className="ml-auto text-[10px] text-muted-foreground uppercase tracking-wide">Custo · Venda · Margem · Perda</span>
+              </div>
+              <div className="p-4">
+                <ResponsiveContainer width="100%" height={Math.max(280, analiseFinanceira.porCategoria.length * 48)}>
+                  <BarChart
+                    data={[...analiseFinanceira.porCategoria].sort((a, b) => b.custo - a.custo)}
+                    layout="vertical"
+                    margin={{ top: 4, right: 24, left: 8, bottom: 4 }}
+                    barGap={2}
+                    barCategoryGap="28%"
+                  >
+                    <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="hsl(220 13% 28%)" />
+                    <XAxis
+                      type="number"
+                      tickFormatter={(v: number) => v >= 1000 ? `R$${(v / 1000).toFixed(0)}k` : `R$${v.toFixed(0)}`}
+                      tick={{ fontSize: 10, fill: "hsl(215 16% 60%)" }}
+                      axisLine={false}
+                      tickLine={false}
+                    />
+                    <YAxis
+                      dataKey="categoria"
+                      type="category"
+                      width={130}
+                      tick={{ fontSize: 10, fill: "hsl(215 16% 75%)" }}
+                      axisLine={false}
+                      tickLine={false}
+                    />
+                    <Tooltip
+                      formatter={(value: number, name: string) => [
+                        value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }),
+                        name,
+                      ]}
+                      contentStyle={{
+                        backgroundColor: "hsl(220 25% 14%)",
+                        border: "1px solid hsl(220 13% 26%)",
+                        borderRadius: "10px",
+                        fontSize: "12px",
+                      }}
+                      labelStyle={{ color: "hsl(215 16% 85%)", fontWeight: 600, marginBottom: 4 }}
+                      itemStyle={{ color: "hsl(215 16% 75%)" }}
+                    />
+                    <Legend
+                      wrapperStyle={{ fontSize: 11, paddingTop: 12 }}
+                      iconType="circle"
+                      iconSize={8}
+                    />
+                    <Bar dataKey="custo" name="Valor Custo" fill="#3b82f6" radius={[0, 3, 3, 0]} maxBarSize={14} />
+                    <Bar dataKey="valorVenda" name="Valor Venda" fill="#10b981" radius={[0, 3, 3, 0]} maxBarSize={14} />
+                    <Bar dataKey="margem" name="Margem R$" fill="#f59e0b" radius={[0, 3, 3, 0]} maxBarSize={14} />
+                    <Bar dataKey="perda" name="Perda R$" fill="#ef4444" radius={[0, 3, 3, 0]} maxBarSize={14} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+
+            {/* Gráfico: Rendimentos por Período */}
+            <div className="bg-card rounded-xl border border-card-border shadow-sm overflow-hidden">
+              <div className="px-5 py-4 border-b border-border flex items-center gap-2">
+                <TrendingUp className="w-4 h-4 text-emerald-500" />
+                <span className="font-semibold text-sm text-foreground">Projeção de Rendimento por Período</span>
+                <span className="ml-auto text-[10px] text-muted-foreground uppercase tracking-wide">Baseado no giro mensal do estoque</span>
+              </div>
+              <div className="p-4">
+                <ResponsiveContainer width="100%" height={200}>
+                  <BarChart
+                    data={[
+                      { periodo: "Diário", valor: analiseFinanceira.rendimentoDiario },
+                      { periodo: "Semanal", valor: analiseFinanceira.rendimentoSemanal },
+                      { periodo: "Mensal", valor: analiseFinanceira.rendimentoMensal },
+                      { periodo: "Anual", valor: analiseFinanceira.rendimentoAnual },
+                    ]}
+                    margin={{ top: 4, right: 24, left: 8, bottom: 4 }}
+                  >
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(220 13% 28%)" />
+                    <XAxis
+                      dataKey="periodo"
+                      tick={{ fontSize: 11, fill: "hsl(215 16% 75%)" }}
+                      axisLine={false}
+                      tickLine={false}
+                    />
+                    <YAxis
+                      tickFormatter={(v: number) => v >= 1000 ? `R$${(v / 1000).toFixed(0)}k` : `R$${v.toFixed(0)}`}
+                      tick={{ fontSize: 10, fill: "hsl(215 16% 60%)" }}
+                      axisLine={false}
+                      tickLine={false}
+                    />
+                    <Tooltip
+                      formatter={(value: number) => [
+                        value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }),
+                        "Margem Estimada",
+                      ]}
+                      contentStyle={{
+                        backgroundColor: "hsl(220 25% 14%)",
+                        border: "1px solid hsl(220 13% 26%)",
+                        borderRadius: "10px",
+                        fontSize: "12px",
+                      }}
+                      itemStyle={{ color: "#10b981" }}
+                    />
+                    <Bar dataKey="valor" name="Rendimento" radius={[6, 6, 0, 0]} maxBarSize={60}>
+                      {[
+                        "#6366f1",
+                        "#3b82f6",
+                        "#10b981",
+                        "#f59e0b",
+                      ].map((color, i) => (
+                        <Cell key={i} fill={color} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
               </div>
             </div>
 

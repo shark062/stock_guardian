@@ -1,0 +1,12 @@
+[build]
+  command = "pnpm --filter @workspace/stock-guardian run build"
+  publish = "artifacts/stock-guardian/dist/public"
+
+[build.environment]
+  NODE_VERSION = "20"
+  BASE_PATH = "/"
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
