@@ -21,6 +21,7 @@ import {
   Copy,
   CheckCheck,
   ShieldOff,
+  Target,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -29,42 +30,93 @@ const permissoesPorRole: Record<User["role"], { label: string; ok: boolean }[]> 
   admin: [
     { label: "Ver dashboard e relatórios", ok: true },
     { label: "Registrar reposição de produtos", ok: true },
+    { label: "Registrar entrada de estoque (lotes)", ok: true },
     { label: "Visualizar promoções sugeridas", ok: true },
     { label: "Ver eficiência de operadores", ok: true },
     { label: "Gerenciar usuários", ok: true },
     { label: "Ver log de auditoria", ok: true },
-    { label: "Configurar servidor externo", ok: true },
     { label: "Exportar relatórios financeiros", ok: true },
+  ],
+  gestor: [
+    { label: "Ver dashboard e relatórios", ok: true },
+    { label: "Registrar reposição de produtos", ok: true },
+    { label: "Registrar entrada de estoque (lotes)", ok: true },
+    { label: "Visualizar promoções sugeridas", ok: true },
+    { label: "Ver eficiência de operadores", ok: true },
+    { label: "Gerenciar usuários", ok: false },
+    { label: "Ver log de auditoria", ok: true },
+    { label: "Exportar relatórios financeiros", ok: true },
+  ],
+  conferente: [
+    { label: "Ver dashboard e relatórios", ok: true },
+    { label: "Registrar reposição de produtos", ok: true },
+    { label: "Registrar entrada de estoque (lotes)", ok: true },
+    { label: "Visualizar promoções sugeridas", ok: false },
+    { label: "Ver eficiência de operadores", ok: false },
+    { label: "Gerenciar usuários", ok: false },
+    { label: "Ver log de auditoria", ok: false },
+    { label: "Exportar relatórios financeiros", ok: false },
+  ],
+  repositor: [
+    { label: "Ver dashboard e relatórios", ok: true },
+    { label: "Registrar reposição de produtos", ok: true },
+    { label: "Registrar entrada de estoque (lotes)", ok: false },
+    { label: "Visualizar promoções sugeridas", ok: false },
+    { label: "Ver eficiência de operadores", ok: false },
+    { label: "Gerenciar usuários", ok: false },
+    { label: "Ver log de auditoria", ok: false },
+    { label: "Exportar relatórios financeiros", ok: false },
   ],
   operador: [
     { label: "Ver dashboard e relatórios", ok: true },
     { label: "Registrar reposição de produtos", ok: true },
+    { label: "Registrar entrada de estoque (lotes)", ok: true },
     { label: "Visualizar promoções sugeridas", ok: true },
     { label: "Ver eficiência de operadores", ok: false },
     { label: "Gerenciar usuários", ok: false },
     { label: "Ver log de auditoria", ok: false },
-    { label: "Configurar servidor externo", ok: false },
     { label: "Exportar relatórios financeiros", ok: false },
   ],
   viewer: [
     { label: "Ver dashboard e relatórios", ok: true },
     { label: "Registrar reposição de produtos", ok: false },
+    { label: "Registrar entrada de estoque (lotes)", ok: false },
     { label: "Visualizar promoções sugeridas", ok: true },
     { label: "Ver eficiência de operadores", ok: false },
     { label: "Gerenciar usuários", ok: false },
     { label: "Ver log de auditoria", ok: false },
-    { label: "Configurar servidor externo", ok: false },
     { label: "Exportar relatórios financeiros", ok: false },
   ],
 };
 
-const roleConfig = {
+const roleConfig: Record<User["role"], { label: string; icon: React.ElementType; badge: string; iconColor: string; desc: string }> = {
   admin: {
     label: "Administrador",
     icon: Shield,
     badge: "bg-blue-100 text-blue-800 border border-blue-200",
     iconColor: "text-blue-600",
     desc: "Acesso total ao sistema: gerencia usuários, relatórios financeiros e auditorias.",
+  },
+  gestor: {
+    label: "Gestor",
+    icon: Target,
+    badge: "bg-purple-100 text-purple-800 border border-purple-200",
+    iconColor: "text-purple-600",
+    desc: "Acessa relatórios, eficiência e registra entradas. Sem acesso a gerenciar usuários.",
+  },
+  conferente: {
+    label: "Conferente",
+    icon: Check,
+    badge: "bg-emerald-100 text-emerald-800 border border-emerald-200",
+    iconColor: "text-emerald-600",
+    desc: "Registra entrada de produtos e reposições. Acesso limitado por grupo de setor.",
+  },
+  repositor: {
+    label: "Repositor",
+    icon: Wrench,
+    badge: "bg-orange-100 text-orange-800 border border-orange-200",
+    iconColor: "text-orange-600",
+    desc: "Consulta produtos e registra reposições do seu setor. Acesso restrito ao grupo.",
   },
   operador: {
     label: "Operador",
@@ -486,6 +538,9 @@ export default function UsersPage() {
                 <label className="block text-sm font-medium text-foreground mb-1.5">Permissão</label>
                 <select value={addForm.role} onChange={(e) => setAddForm((p) => ({ ...p, role: e.target.value as User["role"] }))} className="w-full px-3 py-2 rounded-lg text-sm bg-muted border border-border text-foreground outline-none focus:ring-2 focus:ring-primary/30">
                   <option value="admin">Administrador — acesso total</option>
+                  <option value="gestor">Gestor — relatórios e entradas</option>
+                  <option value="conferente">Conferente — entrada de estoque</option>
+                  <option value="repositor">Repositor — reposição por setor</option>
                   <option value="operador">Operador — cadastra reposições</option>
                   <option value="viewer">Visualizador — somente leitura</option>
                 </select>
@@ -539,6 +594,9 @@ export default function UsersPage() {
                 <label className="block text-sm font-medium text-foreground mb-1.5">Permissão</label>
                 <select value={editForm.role} onChange={(e) => setEditForm((p) => ({ ...p, role: e.target.value as User["role"] }))} className="w-full px-3 py-2 rounded-lg text-sm bg-muted border border-border text-foreground outline-none">
                   <option value="admin">Administrador</option>
+                  <option value="gestor">Gestor</option>
+                  <option value="conferente">Conferente</option>
+                  <option value="repositor">Repositor</option>
                   <option value="operador">Operador</option>
                   <option value="viewer">Visualizador</option>
                 </select>

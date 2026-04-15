@@ -16,8 +16,13 @@ import {
   ChevronRight,
   X,
   ScanLine,
+  PlusCircle,
+  CheckCircle2,
+  Calendar,
+  Hash,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 function fmt(val: number) {
   return val.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -105,8 +110,138 @@ function ProductCard({ product, isAdmin }: { product: Product; isAdmin: boolean 
   );
 }
 
+interface LotForm {
+  quantidade: string;
+  validade: string;
+  lote: string;
+}
+
+function EntradaEstoqueForm({ product, onSuccess }: { product: Product; onSuccess: () => void }) {
+  const { addLot } = useStore();
+  const { user } = useAuth();
+  const [form, setForm] = useState<LotForm>({ quantidade: "", validade: "", lote: "" });
+  const [saving, setSaving] = useState(false);
+  const [done, setDone] = useState(false);
+
+  const handleSalvar = async () => {
+    const qtd = Number(form.quantidade);
+    if (!form.quantidade || isNaN(qtd) || qtd <= 0) {
+      toast.error("Informe uma quantidade válida.");
+      return;
+    }
+    if (!form.validade) {
+      toast.error("Informe a data de validade.");
+      return;
+    }
+
+    const hoje = new Date();
+    hoje.setHours(0, 0, 0, 0);
+    const dataVal = new Date(form.validade + "T00:00:00");
+    if (dataVal < hoje) {
+      toast.error("A data de validade informada já está vencida.");
+      return;
+    }
+
+    setSaving(true);
+    try {
+      addLot({
+        id: `lot-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        produtoCodigo: product.codigoBarras,
+        produtoNome: product.nome,
+        quantidade: qtd,
+        validade: form.validade,
+        custo: product.custo,
+        precoVenda: product.preco,
+        dataRecebimento: new Date().toISOString().split("T")[0],
+        origem: "manual",
+      });
+      setDone(true);
+      toast.success(`Lote de ${qtd} un. de "${product.nome}" registrado com sucesso!`);
+    } catch (e) {
+      toast.error("Erro ao registrar o lote. Tente novamente.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (done) {
+    return (
+      <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-6 text-center animate-fade-in">
+        <CheckCircle2 className="w-10 h-10 text-emerald-500 mx-auto mb-3" />
+        <p className="font-semibold text-emerald-800 text-sm">Entrada registrada com sucesso!</p>
+        <p className="text-xs text-emerald-600 mt-1">{product.nome} — {form.quantidade} unidades</p>
+        <button
+          onClick={() => { setDone(false); setForm({ quantidade: "", validade: "", lote: "" }); }}
+          className="mt-4 text-xs text-emerald-700 underline cursor-pointer"
+        >
+          Registrar outra entrada
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-card rounded-2xl border border-card-border shadow-sm overflow-hidden animate-fade-in">
+      <div className="px-5 py-4 border-b border-border flex items-center gap-2">
+        <PlusCircle className="w-4 h-4 text-primary" />
+        <span className="font-semibold text-sm text-foreground">Registrar Entrada de Estoque</span>
+      </div>
+      <div className="px-5 py-5 space-y-4">
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground mb-1.5">
+              <Hash className="w-3 h-3" />
+              Quantidade *
+            </label>
+            <input
+              type="number"
+              min="1"
+              value={form.quantidade}
+              onChange={(e) => setForm((p) => ({ ...p, quantidade: e.target.value }))}
+              placeholder="Ex: 20"
+              className="w-full px-3 py-2.5 rounded-lg text-sm bg-muted border border-border text-foreground outline-none focus:ring-2 focus:ring-primary/30"
+            />
+          </div>
+          <div>
+            <label className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground mb-1.5">
+              <Calendar className="w-3 h-3" />
+              Validade *
+            </label>
+            <input
+              type="date"
+              value={form.validade}
+              onChange={(e) => setForm((p) => ({ ...p, validade: e.target.value }))}
+              className="w-full px-3 py-2.5 rounded-lg text-sm bg-muted border border-border text-foreground outline-none focus:ring-2 focus:ring-primary/30"
+            />
+          </div>
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-muted-foreground mb-1.5">
+            Número do Lote (opcional)
+          </label>
+          <input
+            type="text"
+            value={form.lote}
+            onChange={(e) => setForm((p) => ({ ...p, lote: e.target.value }))}
+            placeholder="Ex: L2025-001"
+            className="w-full px-3 py-2.5 rounded-lg text-sm bg-muted border border-border text-foreground outline-none focus:ring-2 focus:ring-primary/30"
+          />
+        </div>
+        <button
+          onClick={handleSalvar}
+          disabled={saving || !form.quantidade || !form.validade}
+          className="w-full py-3 rounded-xl text-sm font-semibold transition-colors cursor-pointer disabled:opacity-50"
+          style={{ backgroundColor: "hsl(40, 54%, 54%)", color: "hsl(220, 73%, 12%)" }}
+        >
+          {saving ? "Salvando..." : "Confirmar Entrada"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function Consulta() {
-  const { isAdmin } = useAuth();
+  const { isAdmin, canEdit } = useAuth();
   const { productsReady } = useStore();
   const [, navigate] = useLocation();
   const [query, setQuery] = useState("");
@@ -114,11 +249,13 @@ export default function Consulta() {
   const [suggestions, setSuggestions] = useState<Product[]>([]);
   const [notFound, setNotFound] = useState(false);
   const [showScanner, setShowScanner] = useState(false);
+  const [showEntrada, setShowEntrada] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const handleBarcode = (code: string) => {
     setShowScanner(false);
     setQuery(code);
+    setShowEntrada(false);
     const exact = getProductByBarcode(code.trim());
     if (exact) {
       setResult(exact);
@@ -140,13 +277,13 @@ export default function Consulta() {
     setQuery(val);
     setNotFound(false);
     setResult(null);
+    setShowEntrada(false);
 
     if (!val.trim()) {
       setSuggestions([]);
       return;
     }
 
-    // Try exact barcode first
     const exact = getProductByBarcode(val.trim());
     if (exact) {
       setResult(exact);
@@ -154,7 +291,6 @@ export default function Consulta() {
       return;
     }
 
-    // Show suggestions
     const sugs = searchProducts(val.trim(), 8);
     setSuggestions(sugs);
   };
@@ -163,6 +299,7 @@ export default function Consulta() {
     setResult(p);
     setSuggestions([]);
     setQuery(p.nome);
+    setShowEntrada(false);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -183,6 +320,7 @@ export default function Consulta() {
     setResult(null);
     setSuggestions([]);
     setNotFound(false);
+    setShowEntrada(false);
     inputRef.current?.focus();
   };
 
@@ -262,6 +400,26 @@ export default function Consulta() {
         </div>
 
         {result && <ProductCard product={result} isAdmin={isAdmin} />}
+
+        {result && canEdit && (
+          <div className="space-y-3">
+            <button
+              onClick={() => setShowEntrada((v) => !v)}
+              className={cn(
+                "w-full flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-semibold border transition-all cursor-pointer",
+                showEntrada
+                  ? "bg-primary/10 border-primary/30 text-primary"
+                  : "bg-card border-card-border text-muted-foreground hover:text-foreground hover:border-primary/30"
+              )}
+            >
+              <PlusCircle className="w-4 h-4" />
+              {showEntrada ? "Fechar Entrada de Estoque" : "Registrar Entrada de Estoque"}
+            </button>
+            {showEntrada && (
+              <EntradaEstoqueForm product={result} onSuccess={() => setShowEntrada(false)} />
+            )}
+          </div>
+        )}
 
         {!result && !query && (
           <div className="text-center py-8 text-muted-foreground">

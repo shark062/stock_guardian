@@ -1,6 +1,6 @@
 import { realProducts } from "./realProducts";
 
-export type Role = "admin" | "operador" | "viewer";
+export type Role = "admin" | "operador" | "viewer" | "gestor" | "conferente" | "repositor";
 
 export interface User {
   id: number;
@@ -9,6 +9,7 @@ export interface User {
   username: string;
   telefone?: string;
   role: Role;
+  grupo?: string;
   ativo: boolean;
   criadoEm: string;
 }
@@ -73,8 +74,9 @@ export const mockUsers: User[] = [
   { id: 1, nome: "Alex Sousa", username: "Alex_Sousa", email: "alex@stockguardian.com", role: "admin", ativo: true, criadoEm: "2024-01-15" },
   { id: 2, nome: "Carlos Operador", username: "carlos", email: "carlos@stockguardian.com", role: "operador", ativo: true, criadoEm: "2024-02-10" },
   { id: 3, nome: "Fernanda Viewer", username: "fernanda", email: "fernanda@stockguardian.com", role: "viewer", ativo: true, criadoEm: "2024-03-05" },
-  { id: 4, nome: "João Silva", username: "joao", email: "joao@stockguardian.com", role: "operador", ativo: false, criadoEm: "2024-01-20" },
-  { id: 5, nome: "Maria Santos", username: "maria", email: "maria@stockguardian.com", role: "viewer", ativo: true, criadoEm: "2024-04-01" },
+  { id: 4, nome: "João Gestor", username: "joao_gestor", email: "joao@stockguardian.com", role: "gestor", ativo: true, criadoEm: "2024-01-20" },
+  { id: 5, nome: "Maria Conferente", username: "maria_conf", email: "maria@stockguardian.com", role: "conferente", grupo: "laticinios", ativo: true, criadoEm: "2024-04-01" },
+  { id: 6, nome: "Pedro Repositor", username: "pedro_rep", email: "pedro@stockguardian.com", role: "repositor", grupo: "secos", ativo: true, criadoEm: "2024-05-10" },
 ];
 
 function addDays(days: number): string {

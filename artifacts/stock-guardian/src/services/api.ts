@@ -43,6 +43,9 @@ const defaultCredentials: Record<string, AuthEntry> = {
   "alex@stockguardian.com": { password: "12345", isTemp: false },
   "carlos@stockguardian.com": { password: "carlos123", isTemp: false },
   "fernanda@stockguardian.com": { password: "fernanda123", isTemp: false },
+  "joao@stockguardian.com": { password: "joao123", isTemp: false },
+  "maria@stockguardian.com": { password: "maria123", isTemp: false },
+  "pedro@stockguardian.com": { password: "pedro123", isTemp: false },
 };
 
 function getAuthStore(): Record<string, AuthEntry> {
@@ -92,13 +95,16 @@ export function checkCurrentPassword(email: string, password: string): boolean {
 export async function simularLogin(
   login: string,
   senha: string
-): Promise<{ token: string; user: { id: number; nome: string; email: string; role: string } }> {
+): Promise<{ token: string; user: { id: number; nome: string; email: string; role: string; grupo?: string } }> {
   await delay(800);
 
-  const usuarios: Array<{ id: number; nome: string; username: string; email: string; role: string }> = [
+  const usuarios: Array<{ id: number; nome: string; username: string; email: string; role: string; grupo?: string }> = [
     { id: 1, nome: "Alex Sousa", username: "Alex_Sousa", email: "alex@stockguardian.com", role: "admin" },
     { id: 2, nome: "Carlos Operador", username: "carlos", email: "carlos@stockguardian.com", role: "operador" },
     { id: 3, nome: "Fernanda Viewer", username: "fernanda", email: "fernanda@stockguardian.com", role: "viewer" },
+    { id: 4, nome: "João Gestor", username: "joao_gestor", email: "joao@stockguardian.com", role: "gestor" },
+    { id: 5, nome: "Maria Conferente", username: "maria_conf", email: "maria@stockguardian.com", role: "conferente", grupo: "laticinios" },
+    { id: 6, nome: "Pedro Repositor", username: "pedro_rep", email: "pedro@stockguardian.com", role: "repositor", grupo: "secos" },
   ];
 
   const USERS_KEY = "sg_users_state";
@@ -153,6 +159,7 @@ export async function simularLogin(
       nome: usuario.nome,
       email: usuario.email,
       role: usuario.role,
+      grupo: usuario.grupo,
     },
   };
 }

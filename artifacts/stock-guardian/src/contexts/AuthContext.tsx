@@ -1,13 +1,14 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { simularLogin } from "@/services/api";
 
-export type Role = "admin" | "operador" | "viewer";
+export type Role = "admin" | "operador" | "viewer" | "gestor" | "conferente" | "repositor";
 
 export interface AuthUser {
   id: number;
   nome: string;
   email: string;
   role: Role;
+  grupo?: string;
 }
 
 interface AuthContextType {
@@ -17,6 +18,9 @@ interface AuthContextType {
   login: (email: string, senha: string) => Promise<void>;
   logout: () => void;
   isAdmin: boolean;
+  isGestor: boolean;
+  isConferente: boolean;
+  isRepositor: boolean;
   isOperador: boolean;
   canEdit: boolean;
 }
@@ -59,11 +63,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const isAdmin = user?.role === "admin";
-  const isOperador = user?.role === "operador";
-  const canEdit = isAdmin || isOperador;
+  const isGestor = user?.role === "gestor";
+  const isConferente = user?.role === "conferente";
+  const isRepositor = user?.role === "repositor";
+  const isOperador = user?.role === "operador" || isConferente || isRepositor;
+  const canEdit = isAdmin || isOperador || isGestor;
 
   return (
-    <AuthContext.Provider value={{ user, token, isLoading, login, logout, isAdmin, isOperador, canEdit }}>
+    <AuthContext.Provider value={{ user, token, isLoading, login, logout, isAdmin, isGestor, isConferente, isRepositor, isOperador, canEdit }}>
       {children}
     </AuthContext.Provider>
   );
