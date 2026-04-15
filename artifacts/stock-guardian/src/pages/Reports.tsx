@@ -41,6 +41,7 @@ import {
   ArrowDownCircle,
   MinusCircle,
   Receipt,
+  Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -81,63 +82,63 @@ export default function Reports() {
   }, [allProducts, statusFilter, dataInicio, dataFim, categoria]);
 
   const analiseFinanceira = useMemo(() => {
-    const vencidos = allProducts.filter((p) => getProductStatus(p.validade) === "vencido");
-    const criticos = allProducts.filter((p) => getProductStatus(p.validade) === "critico");
-    const atencao = allProducts.filter((p) => getProductStatus(p.validade) === "atencao");
+    // Loop único sobre todos os produtos — evita múltiplas passagens em 7000+ itens
+    const vencidos: typeof allProducts = [];
+    const criticos: typeof allProducts = [];
+    const atencao: typeof allProducts = [];
+    let perdaVencidos = 0, perdaEmRisco = 0, perdaAtencao = 0;
+    let margemBrutaTotal = 0, custoTotalEstoque = 0, valorTotalVenda = 0;
 
-    const perdaVencidos = vencidos.reduce((acc, p) => acc + p.custo * p.quantidade, 0);
-    const perdaEmRisco = criticos.reduce((acc, p) => acc + p.custo * p.quantidade, 0);
-    const perdaAtencao = atencao.reduce((acc, p) => acc + p.custo * p.quantidade * 0.5, 0);
+    const catMap: Record<string, { produtos: number; custo: number; valorVenda: number; margem: number; emRisco: number; perda: number }> = {};
 
-    // Margem calculada direto dos produtos reais (preço - custo)
-    const margemBrutaTotal = allProducts.reduce(
-      (acc, p) => acc + (p.preco - p.custo) * p.quantidade,
-      0
-    );
-    const custoTotalEstoque = allProducts.reduce((acc, p) => acc + p.custo * p.quantidade, 0);
+    for (const p of allProducts) {
+      const custo = (p.custo ?? 0) * (p.quantidade ?? 0);
+      const venda = (p.preco ?? 0) * (p.quantidade ?? 0);
+      const margem = ((p.preco ?? 0) - (p.custo ?? 0)) * (p.quantidade ?? 0);
+
+      custoTotalEstoque += custo;
+      valorTotalVenda += venda;
+      margemBrutaTotal += margem;
+
+      const status = getProductStatus(p.validade ?? "");
+      if (status === "vencido") { vencidos.push(p); perdaVencidos += custo; }
+      else if (status === "critico") { criticos.push(p); perdaEmRisco += custo; }
+      else if (status === "atencao") { atencao.push(p); perdaAtencao += custo * 0.5; }
+
+      const cat = p.categoria || "Sem Categoria";
+      if (!catMap[cat]) catMap[cat] = { produtos: 0, custo: 0, valorVenda: 0, margem: 0, emRisco: 0, perda: 0 };
+      catMap[cat].produtos++;
+      catMap[cat].custo += custo;
+      catMap[cat].valorVenda += venda;
+      catMap[cat].margem += margem;
+      if (status === "vencido" || status === "critico") {
+        catMap[cat].emRisco++;
+        catMap[cat].perda += custo;
+      }
+    }
+
     const margemPct = custoTotalEstoque > 0 ? (margemBrutaTotal / custoTotalEstoque) * 100 : 0;
 
     const totalReposicoes = reposicoes.length;
-    const errosFifo = reposicoes.filter((r) => r.erro_fifo).length;
+    let errosFifo = 0;
+    for (const r of reposicoes) { if (r.erro_fifo) errosFifo++; }
     const taxaFifo = totalReposicoes > 0 ? ((totalReposicoes - errosFifo) / totalReposicoes) * 100 : 100;
 
-    const porCategoria = categorias.map((cat) => {
-      const prods = allProducts.filter((p) => p.categoria === cat);
-      const margem = prods.reduce((acc, p) => acc + (p.preco - p.custo) * p.quantidade, 0);
-      const custo = prods.reduce((acc, p) => acc + p.custo * p.quantidade, 0);
-      const valorVenda = prods.reduce((acc, p) => acc + p.preco * p.quantidade, 0);
-      const margemPctCat = custo > 0 ? (margem / custo) * 100 : 0;
-      const emRisco = prods.filter((p) => {
-        const s = getProductStatus(p.validade);
-        return s === "vencido" || s === "critico";
-      });
-      const perdaCat = emRisco.reduce((acc, p) => acc + p.custo * p.quantidade, 0);
+    const porCategoria = Object.entries(catMap).map(([categoria, c]) => ({
+      categoria,
+      ...c,
+      margemPct: c.custo > 0 ? (c.margem / c.custo) * 100 : 0,
+    })).sort((a, b) => b.perda - a.perda);
 
-      return {
-        categoria: cat,
-        produtos: prods.length,
-        margem,
-        margemPct: margemPctCat,
-        emRisco: emRisco.length,
-        perda: perdaCat,
-        custo,
-        valorVenda,
-      };
-    }).sort((a, b) => b.perda - a.perda);
+    let maxPerda = 1, maxMargem = 1, maxValorEstoque = 1;
+    for (const c of porCategoria) {
+      if (c.perda > maxPerda) maxPerda = c.perda;
+      if (Math.abs(c.margem) > maxMargem) maxMargem = Math.abs(c.margem);
+      if (c.custo > maxValorEstoque) maxValorEstoque = c.custo;
+    }
 
-    const maxPerda = Math.max(...porCategoria.map((c) => c.perda), 1);
-    const maxMargem = Math.max(...porCategoria.map((c) => Math.abs(c.margem)), 1);
-    const maxValorEstoque = Math.max(...porCategoria.map((c) => c.custo), 1);
-
-    const valorTotalEstoque = allProducts.reduce((acc, p) => acc + p.custo * p.quantidade, 0);
-    const valorTotalVenda = allProducts.reduce((acc, p) => acc + p.preco * p.quantidade, 0);
     const perdaEstimadaSeInacao = perdaEmRisco + perdaAtencao;
-
-    // Rendimentos estimados: considera giro mensal de estoque
     const rendimentoMensal = margemBrutaTotal;
-    const rendimentoDiario = rendimentoMensal / 30;
-    const rendimentoSemanal = rendimentoMensal / 30 * 7;
-    const rendimentoAnual = rendimentoMensal * 12;
 
     return {
       vencidos,
@@ -157,14 +158,14 @@ export default function Reports() {
       maxPerda,
       maxMargem,
       maxValorEstoque,
-      valorTotalEstoque,
+      valorTotalEstoque: custoTotalEstoque,
       valorTotalVenda,
-      rendimentoDiario,
-      rendimentoSemanal,
+      rendimentoDiario: rendimentoMensal / 30,
+      rendimentoSemanal: (rendimentoMensal / 30) * 7,
       rendimentoMensal,
-      rendimentoAnual,
+      rendimentoAnual: rendimentoMensal * 12,
     };
-  }, [allProducts, lots, reposicoes, categorias]);
+  }, [allProducts, reposicoes]);
 
   const handleExportCompleto = () => {
     gerarPDFSecao(
@@ -323,6 +324,17 @@ export default function Reports() {
       negativo: analiseFinanceira.taxaFifo < 90,
     },
   ];
+
+  if (!productsReady) {
+    return (
+      <Layout title="Relatórios">
+        <div className="flex flex-col items-center justify-center py-24 gap-4 text-muted-foreground">
+          <Loader2 className="w-8 h-8 animate-spin" />
+          <p className="text-sm font-medium">Carregando dados do catálogo...</p>
+        </div>
+      </Layout>
+    );
+  }
 
   return (
     <Layout title="Relatórios">
