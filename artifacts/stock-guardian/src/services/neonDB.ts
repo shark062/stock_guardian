@@ -157,6 +157,7 @@ export async function initDB(): Promise<boolean> {
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       )
     `;
+    await ensureUsersTable();
     return true;
   } catch (e) {
     console.error("[neonDB] Erro ao criar tabelas:", e);
@@ -295,3 +296,206 @@ export async function markAllNotificationsRead(): Promise<void> {
 }
 
 export const dbAvailable = !!NEON_URL;
+
+export type Role = "admin" | "operador" | "viewer" | "gestor" | "conferente" | "repositor";
+
+export interface DbUser {
+  id: number;
+  nome: string;
+  email: string;
+  username: string;
+  telefone?: string;
+  role: Role;
+  grupo?: string;
+  ativo: boolean;
+  criadoEm: string;
+  hasPassword: boolean;
+  senhaTemp: boolean;
+}
+
+const DEFAULT_SEED_USERS = [
+  { id: 1, nome: "Alex Sousa", email: "alex@stockguardian.com", username: "Alex_Sousa", role: "admin", grupo: null, senha: "12345" },
+  { id: 2, nome: "Carlos Operador", email: "carlos@stockguardian.com", username: "carlos", role: "operador", grupo: null, senha: "carlos123" },
+  { id: 3, nome: "Fernanda Viewer", email: "fernanda@stockguardian.com", username: "fernanda", role: "viewer", grupo: null, senha: "fernanda123" },
+  { id: 4, nome: "João Gestor", email: "joao@stockguardian.com", username: "joao_gestor", role: "gestor", grupo: null, senha: "joao123" },
+  { id: 5, nome: "Maria Conferente", email: "maria@stockguardian.com", username: "maria_conf", role: "conferente", grupo: "laticinios", senha: "maria123" },
+  { id: 6, nome: "Pedro Repositor", email: "pedro@stockguardian.com", username: "pedro_rep", role: "repositor", grupo: "secos", senha: "pedro123" },
+];
+
+export async function ensureUsersTable(): Promise<void> {
+  const db = getSQL();
+  if (!db) return;
+  try {
+    await db`
+      CREATE TABLE IF NOT EXISTS sg_users (
+        id SERIAL PRIMARY KEY,
+        nome TEXT NOT NULL,
+        email TEXT UNIQUE NOT NULL,
+        username TEXT UNIQUE NOT NULL,
+        telefone TEXT,
+        senha TEXT,
+        senha_temp BOOLEAN NOT NULL DEFAULT FALSE,
+        role TEXT NOT NULL DEFAULT 'viewer',
+        grupo TEXT,
+        ativo BOOLEAN NOT NULL DEFAULT TRUE,
+        criado_em TEXT NOT NULL DEFAULT CURRENT_DATE::TEXT
+      )
+    `;
+    const cnt = await db`SELECT COUNT(*)::int AS cnt FROM sg_users`;
+    if (Number(cnt[0]?.cnt ?? 0) === 0) {
+      for (const u of DEFAULT_SEED_USERS) {
+        await db`
+          INSERT INTO sg_users (id, nome, email, username, role, grupo, ativo, senha, criado_em)
+          VALUES (${u.id}, ${u.nome}, ${u.email}, ${u.username}, ${u.role}, ${u.grupo}, TRUE, ${u.senha}, CURRENT_DATE::TEXT)
+          ON CONFLICT (email) DO NOTHING
+        `;
+      }
+    }
+  } catch (e) {
+    console.error("[neonDB] Erro ao criar tabela sg_users:", e);
+  }
+}
+
+function mapUserRow(r: Record<string, unknown>): DbUser {
+  return {
+    id: Number(r.id),
+    nome: r.nome as string,
+    email: r.email as string,
+    username: r.username as string,
+    telefone: (r.telefone as string) || undefined,
+    role: r.role as Role,
+    grupo: (r.grupo as string) || undefined,
+    ativo: Boolean(r.ativo),
+    criadoEm: r.criado_em as string,
+    hasPassword: Boolean(r.has_password),
+    senhaTemp: Boolean(r.senha_temp),
+  };
+}
+
+export async function loadUsersFromDB(): Promise<DbUser[]> {
+  const db = getSQL();
+  if (!db) return [];
+  try {
+    const rows = await db`
+      SELECT id, nome, email, username, telefone, role, grupo, ativo, criado_em,
+             (senha IS NOT NULL) AS has_password, senha_temp
+      FROM sg_users ORDER BY id
+    `;
+    return rows.map(mapUserRow);
+  } catch (e) {
+    console.error("[neonDB] Erro ao carregar usuários:", e);
+    return [];
+  }
+}
+
+export async function saveUserToDB(user: {
+  id?: number;
+  nome: string;
+  email: string;
+  username: string;
+  telefone?: string;
+  role: string;
+  grupo?: string;
+  ativo: boolean;
+}): Promise<DbUser | null> {
+  const db = getSQL();
+  if (!db) return null;
+  try {
+    if (user.id) {
+      const rows = await db`
+        UPDATE sg_users
+        SET nome = ${user.nome}, email = ${user.email}, username = ${user.username},
+            telefone = ${user.telefone ?? null}, role = ${user.role},
+            grupo = ${user.grupo ?? null}, ativo = ${user.ativo}
+        WHERE id = ${user.id}
+        RETURNING id, nome, email, username, telefone, role, grupo, ativo, criado_em,
+                  (senha IS NOT NULL) AS has_password, senha_temp
+      `;
+      return rows[0] ? mapUserRow(rows[0] as Record<string, unknown>) : null;
+    } else {
+      const criado_em = new Date().toISOString().split("T")[0];
+      const rows = await db`
+        INSERT INTO sg_users (nome, email, username, telefone, role, grupo, ativo, criado_em)
+        VALUES (${user.nome}, ${user.email}, ${user.username}, ${user.telefone ?? null},
+                ${user.role}, ${user.grupo ?? null}, ${user.ativo}, ${criado_em})
+        RETURNING id, nome, email, username, telefone, role, grupo, ativo, criado_em,
+                  (senha IS NOT NULL) AS has_password, senha_temp
+      `;
+      return rows[0] ? mapUserRow(rows[0] as Record<string, unknown>) : null;
+    }
+  } catch (e) {
+    console.error("[neonDB] Erro ao salvar usuário:", e);
+    return null;
+  }
+}
+
+export async function deleteUserFromDB(id: number): Promise<void> {
+  const db = getSQL();
+  if (!db) return;
+  try {
+    await db`DELETE FROM sg_users WHERE id = ${id}`;
+  } catch (e) {
+    console.error("[neonDB] Erro ao excluir usuário:", e);
+  }
+}
+
+export async function setUserPasswordInDB(email: string, senha: string | null, isTemp = false): Promise<void> {
+  const db = getSQL();
+  if (!db) return;
+  try {
+    await db`UPDATE sg_users SET senha = ${senha}, senha_temp = ${isTemp} WHERE LOWER(email) = ${email.toLowerCase()}`;
+  } catch (e) {
+    console.error("[neonDB] Erro ao atualizar senha:", e);
+  }
+}
+
+export async function checkPasswordInDB(email: string, senha: string): Promise<boolean> {
+  const db = getSQL();
+  if (!db) return false;
+  try {
+    const rows = await db`
+      SELECT senha FROM sg_users
+      WHERE LOWER(email) = ${email.toLowerCase()}
+      LIMIT 1
+    `;
+    if (rows.length === 0) return false;
+    return rows[0].senha === senha;
+  } catch (e) {
+    console.error("[neonDB] Erro ao verificar senha:", e);
+    return false;
+  }
+}
+
+export async function loginUserFromDB(login: string, senha: string): Promise<{
+  id: number; nome: string; email: string; role: string; grupo?: string;
+} | null> {
+  const db = getSQL();
+  if (!db) return null;
+  try {
+    const loginLower = login.trim().toLowerCase();
+    const rows = await db`
+      SELECT id, nome, email, role, grupo, senha, senha_temp, ativo
+      FROM sg_users
+      WHERE (LOWER(email) = ${loginLower} OR LOWER(username) = ${loginLower})
+        AND ativo = TRUE
+      LIMIT 1
+    `;
+    if (rows.length === 0) return null;
+    const u = rows[0];
+    if (u.senha === null || u.senha === undefined) return null;
+    if (u.senha !== senha) return null;
+    if (u.senha_temp) {
+      await db`UPDATE sg_users SET senha_temp = FALSE WHERE id = ${u.id}`;
+    }
+    return {
+      id: Number(u.id),
+      nome: u.nome as string,
+      email: u.email as string,
+      role: u.role as string,
+      grupo: (u.grupo as string) || undefined,
+    };
+  } catch (e) {
+    console.error("[neonDB] Erro ao fazer login:", e);
+    return null;
+  }
+}

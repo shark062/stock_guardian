@@ -1,4 +1,10 @@
 import { mockProductsExternal } from "./mockData";
+import {
+  loginUserFromDB,
+  setUserPasswordInDB,
+  checkPasswordInDB,
+  dbAvailable,
+} from "./neonDB";
 
 const getToken = () => localStorage.getItem("sg_token");
 
@@ -32,134 +38,40 @@ export async function consultarProdutoExterno(
   return { encontrado: false };
 }
 
-const AUTH_STORE_KEY = "sg_auth_store";
-
-interface AuthEntry {
-  password: string | null;
-  isTemp: boolean;
+export async function createTempPassword(email: string, password: string): Promise<void> {
+  await setUserPasswordInDB(email, password, true);
 }
 
-const defaultCredentials: Record<string, AuthEntry> = {
-  "alex@stockguardian.com": { password: "12345", isTemp: false },
-  "carlos@stockguardian.com": { password: "carlos123", isTemp: false },
-  "fernanda@stockguardian.com": { password: "fernanda123", isTemp: false },
-  "joao@stockguardian.com": { password: "joao123", isTemp: false },
-  "maria@stockguardian.com": { password: "maria123", isTemp: false },
-  "pedro@stockguardian.com": { password: "pedro123", isTemp: false },
-};
-
-function getAuthStore(): Record<string, AuthEntry> {
-  try {
-    const raw = localStorage.getItem(AUTH_STORE_KEY);
-    if (raw) return JSON.parse(raw);
-  } catch {}
-  return { ...defaultCredentials };
+export async function setUserPassword(email: string, password: string, isTemp = false): Promise<void> {
+  await setUserPasswordInDB(email, password, isTemp);
 }
 
-function saveAuthStore(store: Record<string, AuthEntry>) {
-  try {
-    localStorage.setItem(AUTH_STORE_KEY, JSON.stringify(store));
-  } catch {}
+export async function deleteUserPassword(email: string): Promise<void> {
+  await setUserPasswordInDB(email, null, false);
 }
 
-export function createTempPassword(email: string, password: string) {
-  const store = getAuthStore();
-  store[email] = { password, isTemp: true };
-  saveAuthStore(store);
-}
-
-export function setUserPassword(email: string, password: string, isTemp = false) {
-  const store = getAuthStore();
-  store[email] = { password, isTemp };
-  saveAuthStore(store);
-}
-
-export function deleteUserPassword(email: string) {
-  const store = getAuthStore();
-  store[email] = { password: null, isTemp: false };
-  saveAuthStore(store);
-}
-
-export function getUserHasPassword(email: string): boolean {
-  const store = getAuthStore();
-  const entry = store[email] ?? defaultCredentials[email];
-  return entry?.password !== null && entry?.password !== undefined;
-}
-
-export function checkCurrentPassword(email: string, password: string): boolean {
-  const store = getAuthStore();
-  const entry = store[email] ?? defaultCredentials[email];
-  return entry?.password === password;
+export async function checkCurrentPassword(email: string, password: string): Promise<boolean> {
+  if (!dbAvailable) return false;
+  return checkPasswordInDB(email, password);
 }
 
 export async function simularLogin(
   login: string,
   senha: string
 ): Promise<{ token: string; user: { id: number; nome: string; email: string; role: string; grupo?: string } }> {
-  await delay(800);
+  if (!dbAvailable) {
+    throw new Error("Banco de dados não disponível. Configure VITE_NEON_URL.");
+  }
 
-  const usuarios: Array<{ id: number; nome: string; username: string; email: string; role: string; grupo?: string }> = [
-    { id: 1, nome: "Alex Sousa", username: "Alex_Sousa", email: "alex@stockguardian.com", role: "admin" },
-    { id: 2, nome: "Carlos Operador", username: "carlos", email: "carlos@stockguardian.com", role: "operador" },
-    { id: 3, nome: "Fernanda Viewer", username: "fernanda", email: "fernanda@stockguardian.com", role: "viewer" },
-    { id: 4, nome: "João Gestor", username: "joao_gestor", email: "joao@stockguardian.com", role: "gestor" },
-    { id: 5, nome: "Maria Conferente", username: "maria_conf", email: "maria@stockguardian.com", role: "conferente", grupo: "laticinios" },
-    { id: 6, nome: "Pedro Repositor", username: "pedro_rep", email: "pedro@stockguardian.com", role: "repositor", grupo: "secos" },
-  ];
+  const result = await loginUserFromDB(login, senha);
 
-  const USERS_KEY = "sg_users_state";
-  try {
-    const raw = localStorage.getItem(USERS_KEY);
-    if (raw) {
-      const storedUsers = JSON.parse(raw);
-      for (const u of storedUsers) {
-        if (!usuarios.find((x) => x.email === u.email)) {
-          usuarios.push({ id: u.id, nome: u.nome, username: u.username || u.email, email: u.email, role: u.role });
-        } else {
-          const idx = usuarios.findIndex((x) => x.email === u.email);
-          if (idx >= 0) {
-            usuarios[idx] = { ...usuarios[idx], nome: u.nome, username: u.username || u.username, role: u.role };
-          }
-        }
-      }
-    }
-  } catch {}
-
-  const loginLower = login.trim().toLowerCase();
-  const usuario = usuarios.find(
-    (u) => u.email.toLowerCase() === loginLower || u.username.toLowerCase() === loginLower
-  );
-
-  if (!usuario) {
+  if (!result) {
     throw new Error("Usuário ou senha inválidos");
   }
 
-  const store = getAuthStore();
-  const authEntry = store[usuario.email] ?? defaultCredentials[usuario.email];
-
-  if (!authEntry || authEntry.password === null) {
-    throw new Error("Este usuário não tem senha definida. Contate o administrador.");
-  }
-
-  if (authEntry.password !== senha) {
-    throw new Error("Usuário ou senha inválidos");
-  }
-
-  if (authEntry.isTemp) {
-    const updatedStore = getAuthStore();
-    updatedStore[usuario.email] = { password: authEntry.password, isTemp: false };
-    saveAuthStore(updatedStore);
-  }
-
-  const token = btoa(`${usuario.email}:${Date.now()}:${Math.random()}`);
+  const token = btoa(`${result.email}:${Date.now()}:${Math.random()}`);
   return {
     token,
-    user: {
-      id: usuario.id,
-      nome: usuario.nome,
-      email: usuario.email,
-      role: usuario.role,
-      grupo: usuario.grupo,
-    },
+    user: result,
   };
 }

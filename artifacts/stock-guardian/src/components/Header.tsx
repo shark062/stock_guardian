@@ -65,14 +65,10 @@ export function Header({ title, onMenuClick }: HeaderProps) {
     setShowModal(true);
   };
 
-  const handleSalvarSenha = () => {
+  const handleSalvarSenha = async () => {
     if (!user) return;
     if (!senhaAtual.trim()) {
       toast.error("Informe a senha atual.");
-      return;
-    }
-    if (!checkCurrentPassword(user.email, senhaAtual)) {
-      toast.error("Senha atual incorreta.");
       return;
     }
     if (novaSenha.length < 4) {
@@ -84,12 +80,16 @@ export function Header({ title, onMenuClick }: HeaderProps) {
       return;
     }
     setSaving(true);
-    setTimeout(() => {
-      setUserPassword(user.email, novaSenha, false);
+    const ok = await checkCurrentPassword(user.email, senhaAtual);
+    if (!ok) {
       setSaving(false);
-      setShowModal(false);
-      toast.success("Senha alterada com sucesso!");
-    }, 400);
+      toast.error("Senha atual incorreta.");
+      return;
+    }
+    await setUserPassword(user.email, novaSenha, false);
+    setSaving(false);
+    setShowModal(false);
+    toast.success("Senha alterada com sucesso!");
   };
 
   return (
