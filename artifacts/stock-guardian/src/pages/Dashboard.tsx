@@ -144,7 +144,7 @@ export default function Dashboard() {
   ];
 
   return (
-    <Layout title="Dashboard">
+    <Layout title="Página Inicial">
       <div className="space-y-6">
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div className="flex items-center gap-2 flex-wrap">

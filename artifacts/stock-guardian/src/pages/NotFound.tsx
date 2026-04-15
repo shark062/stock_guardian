@@ -18,7 +18,7 @@ export default function NotFound() {
             <a className="inline-flex items-center gap-2 mt-6 px-4 py-2.5 rounded-lg text-sm font-semibold transition-colors cursor-pointer"
               style={{ backgroundColor: "hsl(40, 54%, 54%)", color: "hsl(220, 73%, 12%)" }}>
               <ArrowLeft className="w-4 h-4" />
-              Voltar ao Dashboard
+              Voltar à Página Inicial
             </a>
           </Link>
         </div>

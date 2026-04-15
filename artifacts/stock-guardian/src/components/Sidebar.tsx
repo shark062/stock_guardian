@@ -27,7 +27,7 @@ interface NavItem {
 }
 
 const navItems: NavItem[] = [
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/dashboard", label: "Página Inicial", icon: LayoutDashboard },
   { href: "/consulta", label: "Consultar Produto", icon: ScanBarcode },
   { href: "/produtos", label: "Produtos", icon: Package },
   { href: "/reposicao", label: "Reposição", icon: RefreshCw, operadorPlus: true },
