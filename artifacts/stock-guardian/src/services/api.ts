@@ -83,6 +83,12 @@ export function getUserHasPassword(email: string): boolean {
   return entry?.password !== null && entry?.password !== undefined;
 }
 
+export function checkCurrentPassword(email: string, password: string): boolean {
+  const store = getAuthStore();
+  const entry = store[email] ?? defaultCredentials[email];
+  return entry?.password === password;
+}
+
 export async function simularLogin(
   login: string,
   senha: string
