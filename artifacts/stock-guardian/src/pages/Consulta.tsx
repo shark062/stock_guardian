@@ -2,6 +2,7 @@ import { useState, useRef } from "react";
 import { useLocation } from "wouter";
 import { Layout } from "@/components/Layout";
 import { useAuth } from "@/contexts/AuthContext";
+import { useStore } from "@/contexts/StoreContext";
 import { getProductByBarcode, searchProducts } from "@/services/productsDB";
 import { Product } from "@/services/mockData";
 import { BarcodeScanner } from "@/components/BarcodeScanner";
@@ -106,6 +107,7 @@ function ProductCard({ product, isAdmin }: { product: Product; isAdmin: boolean 
 
 export default function Consulta() {
   const { isAdmin } = useAuth();
+  const { productsReady } = useStore();
   const [, navigate] = useLocation();
   const [query, setQuery] = useState("");
   const [result, setResult] = useState<Product | null>(null);
@@ -195,7 +197,9 @@ export default function Consulta() {
       <div className="max-w-lg mx-auto space-y-5">
         <div className="bg-card rounded-2xl border border-card-border shadow-sm p-5">
           <p className="text-sm text-muted-foreground mb-4">
-            Digite o código de barras ou nome do produto para consultar
+            {!productsReady
+              ? "Carregando catálogo de produtos…"
+              : "Digite o código de barras ou nome do produto para consultar"}
           </p>
 
           <div className="relative">

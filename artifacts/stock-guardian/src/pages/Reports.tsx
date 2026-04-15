@@ -52,7 +52,7 @@ function pct(val: number) {
 
 export default function Reports() {
   const { isAdmin } = useAuth();
-  const { lots, reposicoes, eficienciaUsuarios, produtosEmRisco, valorTotalEmRisco } = useStore();
+  const { lots, reposicoes, eficienciaUsuarios, produtosEmRisco, valorTotalEmRisco, productsReady } = useStore();
 
   const [aba, setAba] = useState<Aba>("financeiro");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("todos");
@@ -60,8 +60,8 @@ export default function Reports() {
   const [dataFim, setDataFim] = useState("");
   const [categoria, setCategoria] = useState("");
 
-  const allProducts = useMemo(() => getAllProducts(), []);
-  const categorias = useMemo(() => getCategories(), []);
+  const allProducts = useMemo(() => getAllProducts(), [productsReady]);
+  const categorias = useMemo(() => getCategories(), [productsReady]);
 
   const filtered = useMemo(() => {
     return allProducts.filter((p) => {
@@ -361,6 +361,106 @@ export default function Reports() {
 
         {aba === "financeiro" && (
           <>
+            {/* Lucro por Grupo */}
+            <div className="bg-card rounded-xl border border-card-border shadow-sm overflow-hidden">
+              <div className="px-5 py-4 border-b border-border flex items-center gap-2">
+                <DollarSign className="w-4 h-4 text-emerald-500" />
+                <span className="font-semibold text-sm text-foreground">Lucro por Grupo de Produtos</span>
+                <span className="ml-auto text-[10px] text-muted-foreground uppercase tracking-wide">Preço Venda − Custo × Qtd</span>
+              </div>
+
+              {/* Summary cards */}
+              <div className="grid grid-cols-2 lg:grid-cols-4 divide-x divide-y sm:divide-y-0 divide-border border-b border-border">
+                {[
+                  {
+                    label: "Lucro Bruto Total",
+                    value: fmt(analiseFinanceira.margemBrutaTotal),
+                    sub: "Se todo estoque for vendido",
+                    color: "text-emerald-600",
+                  },
+                  {
+                    label: "Custo Total do Estoque",
+                    value: fmt(analiseFinanceira.valorTotalEstoque),
+                    sub: "Valor investido em mercadoria",
+                    color: "text-blue-600",
+                  },
+                  {
+                    label: "Receita Potencial",
+                    value: fmt(analiseFinanceira.valorTotalVenda),
+                    sub: "Se tudo for vendido pelo preço",
+                    color: "text-primary",
+                  },
+                  {
+                    label: "Margem Geral",
+                    value: pct(analiseFinanceira.margemPct),
+                    sub: `Lucro / Custo (${fmt(analiseFinanceira.margemBrutaTotal)} de lucro)`,
+                    color: analiseFinanceira.margemPct >= 30 ? "text-emerald-600" : analiseFinanceira.margemPct >= 15 ? "text-amber-600" : "text-red-600",
+                  },
+                ].map((c) => (
+                  <div key={c.label} className="px-5 py-4 text-center">
+                    <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide mb-1">{c.label}</p>
+                    <p className={`text-xl font-bold ${c.color}`}>{c.value}</p>
+                    <p className="text-[10px] text-muted-foreground mt-0.5 leading-tight">{c.sub}</p>
+                  </div>
+                ))}
+              </div>
+
+              {/* Lucro por categoria table */}
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-muted/40">
+                      <th className="text-left px-5 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Categoria</th>
+                      <th className="text-right px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide hidden sm:table-cell">Produtos</th>
+                      <th className="text-right px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Custo Total</th>
+                      <th className="text-right px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide hidden md:table-cell">Receita Potencial</th>
+                      <th className="text-right px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Lucro R$</th>
+                      <th className="text-right px-4 py-3 text-xs font-semibold text-muted-foreground uppercase tracking-wide hidden lg:table-cell">Margem %</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {[...analiseFinanceira.porCategoria]
+                      .sort((a, b) => b.margem - a.margem)
+                      .map((cat) => (
+                        <tr key={cat.categoria} className="hover:bg-muted/30 transition-colors">
+                          <td className="px-5 py-2.5 font-medium text-foreground text-sm">{cat.categoria}</td>
+                          <td className="px-4 py-2.5 text-right text-muted-foreground text-xs hidden sm:table-cell">{cat.produtos}</td>
+                          <td className="px-4 py-2.5 text-right text-blue-600 text-sm font-medium">{fmt(cat.custo)}</td>
+                          <td className="px-4 py-2.5 text-right text-foreground text-sm hidden md:table-cell">{fmt(cat.valorVenda)}</td>
+                          <td className="px-4 py-2.5 text-right font-bold text-sm">
+                            <span className={cat.margem >= 0 ? "text-emerald-600" : "text-red-600"}>
+                              {fmt(cat.margem)}
+                            </span>
+                          </td>
+                          <td className="px-4 py-2.5 text-right text-xs font-semibold hidden lg:table-cell">
+                            <span className={
+                              cat.margemPct >= 30 ? "text-emerald-600" :
+                              cat.margemPct >= 15 ? "text-amber-600" : "text-red-600"
+                            }>
+                              {pct(cat.margemPct)}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    <tr className="bg-muted/60 font-bold border-t-2 border-border">
+                      <td className="px-5 py-3 text-foreground text-sm">Total Geral</td>
+                      <td className="px-4 py-3 text-right text-muted-foreground text-xs hidden sm:table-cell">
+                        {analiseFinanceira.porCategoria.reduce((a, c) => a + c.produtos, 0)}
+                      </td>
+                      <td className="px-4 py-3 text-right text-blue-600 text-sm">{fmt(analiseFinanceira.valorTotalEstoque)}</td>
+                      <td className="px-4 py-3 text-right text-foreground text-sm hidden md:table-cell">{fmt(analiseFinanceira.valorTotalVenda)}</td>
+                      <td className="px-4 py-3 text-right text-emerald-600 text-sm">{fmt(analiseFinanceira.margemBrutaTotal)}</td>
+                      <td className="px-4 py-3 text-right text-sm hidden lg:table-cell">
+                        <span className={analiseFinanceira.margemPct >= 30 ? "text-emerald-600" : "text-amber-600"}>
+                          {pct(analiseFinanceira.margemPct)}
+                        </span>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
             {/* Rendimentos Estimados */}
             <div className="bg-card rounded-xl border border-card-border shadow-sm overflow-hidden">
               <div className="px-5 py-4 border-b border-border flex items-center gap-2">

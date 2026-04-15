@@ -5,6 +5,8 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { getProductStatus, getDaysToExpire, Product } from "@/services/mockData";
 import { getPage, getCategories, applyProductOverride, getTotalCount, addProduct } from "@/services/productsDB";
 import { useAuth } from "@/contexts/AuthContext";
+import { useStore } from "@/contexts/StoreContext";
+import { BarcodeScanner } from "@/components/BarcodeScanner";
 import {
   Search,
   Plus,
@@ -16,6 +18,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Barcode,
+  ScanLine,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -30,6 +33,7 @@ const CATEGORIAS_PADRAO = [
 
 export default function Products() {
   const { canEdit, isAdmin } = useAuth();
+  const { productsReady } = useStore();
   const search_qs = useSearch();
   const [search, setSearch] = useState("");
   const [searchInput, setSearchInput] = useState("");
@@ -43,6 +47,7 @@ export default function Products() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [saveLoading, setSaveLoading] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [showScanner, setShowScanner] = useState(false);
 
   const [newNome, setNewNome] = useState("");
   const [newBarcode, setNewBarcode] = useState("");
@@ -67,11 +72,18 @@ export default function Products() {
     }
   }, [search_qs, canEdit]);
 
-  const categories = useMemo(() => getCategories(), []);
+  const categories = useMemo(() => getCategories(), [productsReady]);
 
   const { items: products, total } = useMemo(() => {
     return getPage(page, PAGE_SIZE, search, categoria);
-  }, [page, search, categoria, refreshKey]);
+  }, [page, search, categoria, refreshKey, productsReady]);
+
+  const handleBarcode = (code: string) => {
+    setShowScanner(false);
+    setSearchInput(code);
+    setSearch(code);
+    setPage(1);
+  };
 
   const totalPages = Math.ceil(total / PAGE_SIZE);
 
@@ -117,7 +129,19 @@ export default function Products() {
 
   return (
     <Layout title="Produtos">
+      {showScanner && (
+        <BarcodeScanner
+          onDetected={handleBarcode}
+          onClose={() => setShowScanner(false)}
+        />
+      )}
       <div className="space-y-5">
+        {!productsReady && (
+          <div className="flex items-center justify-center gap-2 py-3 px-4 rounded-lg bg-muted text-muted-foreground text-sm animate-pulse">
+            <Loader2 className="w-4 h-4 animate-spin" />
+            Carregando catálogo de produtos…
+          </div>
+        )}
         <div className="flex flex-col sm:flex-row gap-3">
           <div className="flex flex-1 gap-2">
             <div className="relative flex-1">
@@ -131,6 +155,13 @@ export default function Products() {
                 className="w-full pl-9 pr-4 py-2.5 rounded-lg text-sm bg-card border border-border text-foreground placeholder-muted-foreground outline-none focus:ring-2 focus:ring-primary/30"
               />
             </div>
+            <button
+              onClick={() => setShowScanner(true)}
+              title="Escanear código de barras"
+              className="px-3 py-2.5 rounded-lg text-sm bg-card border border-border text-muted-foreground hover:text-primary hover:border-primary/50 transition-colors cursor-pointer"
+            >
+              <ScanLine className="w-4 h-4" />
+            </button>
             <button
               onClick={handleSearchSubmit}
               className="px-4 py-2.5 rounded-lg text-sm font-semibold bg-muted text-foreground hover:bg-muted/80 transition-colors cursor-pointer"

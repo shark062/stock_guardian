@@ -13,7 +13,7 @@ import {
   Notification,
   getDaysToExpire,
 } from "@/services/mockData";
-import { getProductByBarcode, getAllProducts } from "@/services/productsDB";
+import { getProductByBarcode, getAllProducts, initProducts } from "@/services/productsDB";
 import { sincronizarComServidor } from "@/services/integracao";
 import {
   initDB,
@@ -58,6 +58,7 @@ interface StoreContextType {
   isSyncing: boolean;
   lastSync: string | null;
   lastSyncSource: "servidor" | "mock" | null;
+  productsReady: boolean;
   addLot: (lot: Lot) => void;
   addReposicao: (record: ReposicaoRecord) => void;
   addNotification: (notif: Omit<Notification, "id" | "lida" | "data">) => void;
@@ -111,6 +112,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     loadFromStorage<Notification[]>(STORAGE_KEYS.notifications, [])
   );
   const [isSyncing, setIsSyncing] = useState(false);
+  const [productsReady, setProductsReady] = useState(false);
   const [lastSync, setLastSync] = useState<string | null>(() =>
     localStorage.getItem(STORAGE_KEYS.lastSync)
   );
@@ -125,6 +127,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (lastSync) localStorage.setItem(STORAGE_KEYS.lastSync, lastSync);
   }, [lastSync]);
+
+  // Initialize products catalog (async, dynamic import to reduce bundle)
+  useEffect(() => {
+    initProducts().then(() => setProductsReady(true));
+  }, []);
 
   // Initialize DB and load data from Neon on first mount
   useEffect(() => {
@@ -347,6 +354,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         isSyncing,
         lastSync,
         lastSyncSource,
+        productsReady,
         addLot,
         addReposicao,
         addNotification,

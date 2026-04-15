@@ -11,6 +11,107 @@ function getSQL() {
   return sql;
 }
 
+export interface NeonProduct {
+  id: number;
+  nome: string;
+  codigoBarras: string;
+  preco: number;
+  custo: number;
+  validade: string;
+  categoria: string;
+  quantidade: number;
+}
+
+export async function ensureProductsTable(): Promise<void> {
+  const db = getSQL();
+  if (!db) return;
+  try {
+    await db`
+      CREATE TABLE IF NOT EXISTS sg_products (
+        id INTEGER PRIMARY KEY,
+        nome TEXT NOT NULL,
+        codigo_barras TEXT NOT NULL,
+        preco NUMERIC(10,2) NOT NULL DEFAULT 0,
+        custo NUMERIC(10,2) NOT NULL DEFAULT 0,
+        validade TEXT NOT NULL DEFAULT '2099-12-31',
+        categoria TEXT NOT NULL DEFAULT 'Outros',
+        quantidade INTEGER NOT NULL DEFAULT 0
+      )
+    `;
+  } catch (e) {
+    console.error("[neonDB] Erro ao criar tabela sg_products:", e);
+  }
+}
+
+export async function countProducts(): Promise<number> {
+  const db = getSQL();
+  if (!db) return 0;
+  try {
+    const rows = await db`SELECT COUNT(*)::int AS cnt FROM sg_products`;
+    return Number(rows[0]?.cnt ?? 0);
+  } catch {
+    return 0;
+  }
+}
+
+export async function loadProductsFromNeon(): Promise<NeonProduct[]> {
+  const db = getSQL();
+  if (!db) return [];
+  try {
+    const rows = await db`SELECT * FROM sg_products ORDER BY id`;
+    return rows.map((r) => ({
+      id: Number(r.id),
+      nome: r.nome as string,
+      codigoBarras: r.codigo_barras as string,
+      preco: Number(r.preco),
+      custo: Number(r.custo),
+      validade: r.validade as string,
+      categoria: r.categoria as string,
+      quantidade: Number(r.quantidade),
+    }));
+  } catch (e) {
+    console.error("[neonDB] Erro ao carregar produtos:", e);
+    return [];
+  }
+}
+
+export async function seedProductsToNeon(products: NeonProduct[]): Promise<void> {
+  const db = getSQL();
+  if (!db) return;
+  const PARALLEL = 40;
+  try {
+    for (let i = 0; i < products.length; i += PARALLEL) {
+      const batch = products.slice(i, i + PARALLEL);
+      await Promise.all(
+        batch.map((p) =>
+          db!`INSERT INTO sg_products (id, nome, codigo_barras, preco, custo, validade, categoria, quantidade)
+              VALUES (${p.id}, ${p.nome}, ${p.codigoBarras}, ${p.preco}, ${p.custo}, ${p.validade}, ${p.categoria}, ${p.quantidade})
+              ON CONFLICT (id) DO NOTHING`
+        )
+      );
+    }
+  } catch (e) {
+    console.error("[neonDB] Erro ao semear produtos:", e);
+  }
+}
+
+export async function saveCustomProductToNeon(p: NeonProduct): Promise<void> {
+  const db = getSQL();
+  if (!db) return;
+  try {
+    await db`
+      INSERT INTO sg_products (id, nome, codigo_barras, preco, custo, validade, categoria, quantidade)
+      VALUES (${p.id}, ${p.nome}, ${p.codigoBarras}, ${p.preco}, ${p.custo}, ${p.validade}, ${p.categoria}, ${p.quantidade})
+      ON CONFLICT (id) DO UPDATE SET
+        nome = EXCLUDED.nome, preco = EXCLUDED.preco,
+        custo = EXCLUDED.custo, validade = EXCLUDED.validade,
+        categoria = EXCLUDED.categoria, quantidade = EXCLUDED.quantidade
+    `;
+  } catch (e) {
+    console.error("[neonDB] Erro ao salvar produto:", e);
+  }
+}
+
 export async function initDB(): Promise<boolean> {
   const db = getSQL();
   if (!db) return false;
