@@ -75,11 +75,14 @@ export default function Login() {
                     type="text"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2.5 rounded-lg text-sm text-white placeholder-slate-500 outline-none focus:ring-2 transition-all"
+                    className="w-full pl-10 pr-4 py-3 rounded-lg text-sm text-white placeholder-slate-500 outline-none transition-all"
                     style={{
-                      backgroundColor: "rgba(255,255,255,0.06)",
-                      border: "1px solid rgba(255,255,255,0.10)",
+                      backgroundColor: "rgba(255,255,255,0.07)",
+                      border: `1px solid ${email ? "rgba(255,255,255,0.25)" : "rgba(255,255,255,0.10)"}`,
+                      boxShadow: "0 0 0 0px transparent",
                     }}
+                    onFocus={(e) => { e.target.style.border = "1px solid rgba(255,255,255,0.4)"; e.target.style.boxShadow = "0 0 0 3px rgba(255,255,255,0.06)"; }}
+                    onBlur={(e) => { e.target.style.border = `1px solid ${email ? "rgba(255,255,255,0.25)" : "rgba(255,255,255,0.10)"}`; e.target.style.boxShadow = "none"; }}
                     placeholder="Seu usuário ou e-mail"
                     data-testid="input-email"
                     autoComplete="username"
@@ -98,11 +101,13 @@ export default function Login() {
                     type={showSenha ? "text" : "password"}
                     value={senha}
                     onChange={(e) => setSenha(e.target.value)}
-                    className="w-full pl-10 pr-10 py-2.5 rounded-lg text-sm text-white placeholder-slate-500 outline-none focus:ring-2 transition-all"
+                    className="w-full pl-10 pr-10 py-3 rounded-lg text-sm text-white placeholder-slate-500 outline-none transition-all"
                     style={{
-                      backgroundColor: "rgba(255,255,255,0.06)",
-                      border: "1px solid rgba(255,255,255,0.10)",
+                      backgroundColor: "rgba(255,255,255,0.07)",
+                      border: `1px solid ${senha ? "rgba(255,255,255,0.25)" : "rgba(255,255,255,0.10)"}`,
                     }}
+                    onFocus={(e) => { e.target.style.border = "1px solid rgba(255,255,255,0.4)"; e.target.style.boxShadow = "0 0 0 3px rgba(255,255,255,0.06)"; }}
+                    onBlur={(e) => { e.target.style.border = `1px solid ${senha ? "rgba(255,255,255,0.25)" : "rgba(255,255,255,0.10)"}`; e.target.style.boxShadow = "none"; }}
                     placeholder="••••••••"
                     data-testid="input-senha"
                     autoComplete="current-password"

@@ -158,6 +158,7 @@ async function _tryNeonInBackground() {
           categoria: r.categoria, quantidade: r.quantidade,
         }));
         saveProductsCache(products);
+        _loadIntoMemory(products);
       }
     }
   } catch {}

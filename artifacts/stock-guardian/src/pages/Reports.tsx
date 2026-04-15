@@ -36,10 +36,15 @@ import {
   DollarSign,
   Layers,
   PrinterIcon,
+  Wallet,
+  ArrowUpCircle,
+  ArrowDownCircle,
+  MinusCircle,
+  Receipt,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-type Aba = "financeiro" | "perdas" | "detalhado";
+type Aba = "financeiro" | "perdas" | "detalhado" | "caixa";
 type StatusFilter = "todos" | ProductStatus;
 
 function fmt(val: number) {
@@ -54,7 +59,7 @@ export default function Reports() {
   const { isAdmin } = useAuth();
   const { lots, reposicoes, eficienciaUsuarios, produtosEmRisco, valorTotalEmRisco, productsReady } = useStore();
 
-  const [aba, setAba] = useState<Aba>("financeiro");
+  const [aba, setAba] = useState<Aba>("caixa");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("todos");
   const [dataInicio, setDataInicio] = useState("");
   const [dataFim, setDataFim] = useState("");
@@ -326,6 +331,7 @@ export default function Reports() {
           <div className="flex gap-1 bg-muted rounded-lg p-1 w-fit">
             {(
               [
+                { key: "caixa", label: "Caixa", icon: Wallet },
                 { key: "financeiro", label: "Análise Financeira", icon: BarChart3 },
                 { key: "perdas", label: "Perdas e Riscos", icon: TrendingDown },
                 { key: "detalhado", label: "Relatório Detalhado", icon: FileText },
@@ -1291,6 +1297,230 @@ export default function Reports() {
             </div>
           </>
         )}
+
+        {aba === "caixa" && (() => {
+          const totalInvestido = analiseFinanceira.valorTotalEstoque;
+          const receitaPotencial = analiseFinanceira.valorTotalVenda;
+          const lucroEsperado = analiseFinanceira.margemBrutaTotal;
+          const perdasConfirmadas = analiseFinanceira.perdaVencidos;
+          const perdasEmRisco = analiseFinanceira.perdaEmRisco;
+          const saldoLiquido = lucroEsperado - perdasConfirmadas;
+          const saldoTotal = receitaPotencial - totalInvestido - perdasConfirmadas;
+
+          const ultimosLotes = lots
+            .slice()
+            .sort((a, b) => new Date(b.dataRecebimento).getTime() - new Date(a.dataRecebimento).getTime())
+            .slice(0, 20);
+
+          return (
+            <div className="space-y-4">
+              {/* Cards principais */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                {[
+                  {
+                    label: "Total Investido",
+                    sublabel: "Custo do estoque atual",
+                    value: fmt(totalInvestido),
+                    icon: ArrowDownCircle,
+                    iconColor: "text-blue-600",
+                    iconBg: "bg-blue-50",
+                    valueColor: "text-blue-700",
+                    border: "border-blue-100",
+                  },
+                  {
+                    label: "Receita Potencial",
+                    sublabel: "Se todo estoque for vendido",
+                    value: fmt(receitaPotencial),
+                    icon: ArrowUpCircle,
+                    iconColor: "text-emerald-600",
+                    iconBg: "bg-emerald-50",
+                    valueColor: "text-emerald-700",
+                    border: "border-emerald-100",
+                  },
+                  {
+                    label: "Perdas Confirmadas",
+                    sublabel: "Produtos vencidos (custo)",
+                    value: fmt(perdasConfirmadas),
+                    icon: MinusCircle,
+                    iconColor: "text-red-600",
+                    iconBg: "bg-red-50",
+                    valueColor: "text-red-700",
+                    border: "border-red-100",
+                  },
+                  {
+                    label: "Saldo Líquido",
+                    sublabel: "Lucro esperado − Perdas",
+                    value: fmt(saldoLiquido),
+                    icon: Receipt,
+                    iconColor: saldoLiquido >= 0 ? "text-emerald-600" : "text-red-600",
+                    iconBg: saldoLiquido >= 0 ? "bg-emerald-50" : "bg-red-50",
+                    valueColor: saldoLiquido >= 0 ? "text-emerald-700" : "text-red-700",
+                    border: saldoLiquido >= 0 ? "border-emerald-100" : "border-red-100",
+                  },
+                ].map((c) => (
+                  <div key={c.label} className={cn("bg-card rounded-xl border p-5 shadow-sm", c.border)}>
+                    <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center mb-3", c.iconBg)}>
+                      <c.icon className={cn("w-5 h-5", c.iconColor)} />
+                    </div>
+                    <p className={cn("text-2xl font-bold", c.valueColor)}>{c.value}</p>
+                    <p className="text-sm font-semibold text-foreground mt-0.5">{c.label}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">{c.sublabel}</p>
+                  </div>
+                ))}
+              </div>
+
+              {/* Resumo do caixa */}
+              <div className="bg-card rounded-xl border border-card-border shadow-sm overflow-hidden">
+                <div className="px-5 py-4 border-b border-border flex items-center gap-2">
+                  <Wallet className="w-4 h-4 text-primary" />
+                  <span className="font-semibold text-sm text-foreground">Resumo do Caixa</span>
+                  <span className="ml-auto text-[10px] text-muted-foreground uppercase tracking-wide">Posição atual do estoque</span>
+                </div>
+                <div className="divide-y divide-border">
+                  {[
+                    {
+                      label: "Entradas — Investimento em Estoque",
+                      desc: "Valor total de custo dos produtos em estoque",
+                      value: totalInvestido,
+                      type: "entrada",
+                    },
+                    {
+                      label: "Receita Potencial de Vendas",
+                      desc: "Valor total pelo preço de venda se tudo for vendido",
+                      value: receitaPotencial,
+                      type: "entrada",
+                    },
+                    {
+                      label: "Saídas — Perdas Confirmadas (vencidos)",
+                      desc: "Custo dos produtos já vencidos (não recuperável)",
+                      value: perdasConfirmadas,
+                      type: "saida",
+                    },
+                    {
+                      label: "Saídas — Risco Imediato (críticos)",
+                      desc: "Custo dos produtos que vencem em até 7 dias",
+                      value: perdasEmRisco,
+                      type: "risco",
+                    },
+                  ].map((item) => (
+                    <div key={item.label} className="px-5 py-4 flex items-center gap-4">
+                      <div className={cn(
+                        "w-2 self-stretch rounded-full shrink-0",
+                        item.type === "entrada" ? "bg-emerald-400" :
+                        item.type === "saida" ? "bg-red-400" : "bg-amber-400"
+                      )} />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-foreground">{item.label}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">{item.desc}</p>
+                      </div>
+                      <p className={cn(
+                        "text-base font-bold shrink-0",
+                        item.type === "entrada" ? "text-emerald-600" :
+                        item.type === "saida" ? "text-red-600" : "text-amber-600"
+                      )}>
+                        {item.type === "entrada" ? "+" : "−"} {fmt(item.value)}
+                      </p>
+                    </div>
+                  ))}
+
+                  <div className="px-5 py-5 flex items-center gap-4 bg-muted/40">
+                    <div className={cn(
+                      "w-2 self-stretch rounded-full shrink-0",
+                      saldoTotal >= 0 ? "bg-emerald-600" : "bg-red-600"
+                    )} />
+                    <div className="flex-1">
+                      <p className="text-sm font-bold text-foreground">Saldo Total Esperado</p>
+                      <p className="text-xs text-muted-foreground">Receita Potencial − Custo − Perdas Confirmadas</p>
+                    </div>
+                    <p className={cn(
+                      "text-xl font-bold shrink-0",
+                      saldoTotal >= 0 ? "text-emerald-600" : "text-red-600"
+                    )}>
+                      {fmt(saldoTotal)}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Margem por período */}
+              <div className="bg-card rounded-xl border border-card-border shadow-sm overflow-hidden">
+                <div className="px-5 py-4 border-b border-border flex items-center gap-2">
+                  <TrendingUp className="w-4 h-4 text-emerald-500" />
+                  <span className="font-semibold text-sm text-foreground">Margem por Período</span>
+                  <span className="ml-auto text-xs text-muted-foreground">Margem = {pct(analiseFinanceira.margemPct)} sobre custo</span>
+                </div>
+                <div className="grid grid-cols-2 lg:grid-cols-4 divide-x divide-y sm:divide-y-0 divide-border">
+                  {[
+                    { label: "Diário", value: analiseFinanceira.rendimentoDiario, sub: "÷ 30 dias" },
+                    { label: "Semanal", value: analiseFinanceira.rendimentoSemanal, sub: "× 7 dias" },
+                    { label: "Mensal", value: analiseFinanceira.rendimentoMensal, sub: "giro total" },
+                    { label: "Anual", value: analiseFinanceira.rendimentoAnual, sub: "× 12 meses" },
+                  ].map((r) => (
+                    <div key={r.label} className="px-5 py-5 text-center">
+                      <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide mb-2">{r.label}</p>
+                      <p className="text-xl font-bold text-emerald-600">{fmt(r.value)}</p>
+                      <p className="text-[10px] text-muted-foreground mt-1">{r.sub}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Últimos lotes como histórico de entradas */}
+              {ultimosLotes.length > 0 && (
+                <div className="bg-card rounded-xl border border-card-border shadow-sm overflow-hidden">
+                  <div className="px-5 py-4 border-b border-border flex items-center gap-2">
+                    <Package className="w-4 h-4 text-primary" />
+                    <span className="font-semibold text-sm text-foreground">Últimas Entradas no Estoque</span>
+                    <span className="ml-auto text-xs text-muted-foreground">{ultimosLotes.length} lote(s)</span>
+                  </div>
+                  <div className="divide-y divide-border max-h-80 overflow-y-auto">
+                    {ultimosLotes.map((lot) => {
+                      const valorTotal = lot.quantidade * lot.custo;
+                      const valorVenda = lot.quantidade * (lot.precoVenda ?? lot.custo);
+                      const margemLote = valorVenda - valorTotal;
+                      return (
+                        <div key={lot.id} className="px-5 py-3 flex items-center gap-3">
+                          <div className={cn(
+                            "w-8 h-8 rounded-full flex items-center justify-center shrink-0",
+                            lot.origem === "api" ? "bg-blue-100" : "bg-slate-100"
+                          )}>
+                            <ArrowDownCircle className={cn("w-4 h-4", lot.origem === "api" ? "text-blue-600" : "text-slate-500")} />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-foreground truncate">{lot.produtoNome}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {lot.quantidade} un. × {fmt(lot.custo)} — {new Date(lot.dataRecebimento + "T00:00:00").toLocaleDateString("pt-BR")}
+                            </p>
+                          </div>
+                          <div className="text-right shrink-0">
+                            <p className="text-sm font-bold text-blue-600">{fmt(valorTotal)}</p>
+                            <p className={cn("text-[10px]", margemLote > 0 ? "text-emerald-600" : "text-muted-foreground")}>
+                              margem {fmt(margemLote)}
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="px-5 py-3 bg-muted/40 border-t border-border flex items-center justify-between">
+                    <span className="text-xs text-muted-foreground font-medium">Total investido nos últimos lotes</span>
+                    <span className="text-sm font-bold text-blue-700">
+                      {fmt(ultimosLotes.reduce((acc, l) => acc + l.quantidade * l.custo, 0))}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {ultimosLotes.length === 0 && (
+                <div className="bg-card rounded-xl border border-card-border shadow-sm p-10 text-center">
+                  <Package className="w-10 h-10 text-muted-foreground mx-auto mb-3" />
+                  <p className="text-sm text-muted-foreground">Nenhum lote registrado ainda.</p>
+                  <p className="text-xs text-muted-foreground mt-1">Use a tela de Reposição para registrar entradas de estoque.</p>
+                </div>
+              )}
+            </div>
+          );
+        })()}
       </div>
     </Layout>
   );

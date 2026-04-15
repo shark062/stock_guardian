@@ -28,7 +28,7 @@ import { cn } from "@/lib/utils";
 
 export default function Dashboard() {
   const { isAdmin } = useAuth();
-  const { lots, reposicoes, eficienciaUsuarios, produtosEmRisco, valorTotalEmRisco, isSyncing, syncAPI, lastSync, lastSyncSource, notifications } =
+  const { lots, reposicoes, eficienciaUsuarios, produtosEmRisco, valorTotalEmRisco, isSyncing, syncAPI, lastSync, lastSyncSource, notifications, productsReady } =
     useStore();
   const [showServerCfg, setShowServerCfg] = useState(false);
 
@@ -46,7 +46,7 @@ export default function Dashboard() {
       else ok++;
     }
     return { total, vencidos, criticos, atencao, ok };
-  }, []);
+  }, [productsReady]);
 
   const alertProducts = useMemo(() => {
     const all = getAllProducts();
@@ -57,7 +57,7 @@ export default function Dashboard() {
       })
       .sort((a, b) => new Date(a.validade).getTime() - new Date(b.validade).getTime())
       .slice(0, 6);
-  }, []);
+  }, [productsReady]);
 
   const totalErrosFifo = reposicoes.filter((r) => r.erro_fifo).length;
   const notifNaoLidas = notifications.filter((n) => !n.lida).length;
