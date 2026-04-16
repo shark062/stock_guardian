@@ -314,12 +314,7 @@ export interface DbUser {
 }
 
 const DEFAULT_SEED_USERS = [
-  { id: 1, nome: "Alex Sousa", email: "alex@stockguardian.com", username: "Alex_Sousa", role: "admin", grupo: null, senha: "12345" },
-  { id: 2, nome: "Carlos Operador", email: "carlos@stockguardian.com", username: "carlos", role: "operador", grupo: null, senha: "carlos123" },
-  { id: 3, nome: "Fernanda Viewer", email: "fernanda@stockguardian.com", username: "fernanda", role: "viewer", grupo: null, senha: "fernanda123" },
-  { id: 4, nome: "João Gestor", email: "joao@stockguardian.com", username: "joao_gestor", role: "gestor", grupo: null, senha: "joao123" },
-  { id: 5, nome: "Maria Conferente", email: "maria@stockguardian.com", username: "maria_conf", role: "conferente", grupo: "laticinios", senha: "maria123" },
-  { id: 6, nome: "Pedro Repositor", email: "pedro@stockguardian.com", username: "pedro_rep", role: "repositor", grupo: "secos", senha: "pedro123" },
+  { id: 1, nome: "Administrador", email: "admin@stockguardian.com", username: "admin", role: "admin", grupo: null, senha: "admin123" },
 ];
 
 export async function ensureUsersTable(): Promise<void> {
@@ -341,6 +336,17 @@ export async function ensureUsersTable(): Promise<void> {
         criado_em TEXT NOT NULL DEFAULT CURRENT_DATE::TEXT
       )
     `;
+    const OLD_EXAMPLE_EMAILS = [
+      "carlos@stockguardian.com",
+      "fernanda@stockguardian.com",
+      "joao@stockguardian.com",
+      "maria@stockguardian.com",
+      "pedro@stockguardian.com",
+    ];
+    for (const email of OLD_EXAMPLE_EMAILS) {
+      await db`DELETE FROM sg_users WHERE email = ${email}`;
+    }
+
     const cnt = await db`SELECT COUNT(*)::int AS cnt FROM sg_users`;
     if (Number(cnt[0]?.cnt ?? 0) === 0) {
       for (const u of DEFAULT_SEED_USERS) {
